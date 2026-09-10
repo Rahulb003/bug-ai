@@ -1,6 +1,10 @@
 import { detectLanguage } from "./languageDetector.js";
 import { mergeFindings, summarizeFindings } from "./findingEngine.js";
-import { syntaxAnalyzer, runtimeAnalyzer, securityAnalyzer, performanceAnalyzer, qualityAnalyzer } from "./analyzers/deterministicAnalyzers.js";
+import { syntaxAnalyzer } from "./analyzers/syntaxAnalyzer.js";
+import { runtimeAnalyzer } from "./analyzers/runtimeAnalyzer.js";
+import { securityAnalyzer } from "./analyzers/securityAnalyzer.js";
+import { performanceAnalyzer } from "./analyzers/performanceAnalyzer.js";
+import { qualityAnalyzer } from "./analyzers/qualityAnalyzer.js";
 import { verifyStatic } from "./verification/verificationEngine.js";
 import { analyzeWithAi } from "./ai/aiAnalyzer.js";
 import { analyseProject } from "./projectAnalyzer.js";

@@ -1,4 +1,4 @@
-import { syntaxAnalyzer } from "../analyzers/deterministicAnalyzers.js";
+import { syntaxAnalyzer } from "../analyzers/syntaxAnalyzer.js";
 
 export function verifyStatic({ source, language, file = "Live snippet" }) {
   const syntax = syntaxAnalyzer({ source, language, file });
