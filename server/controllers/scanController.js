@@ -4,6 +4,7 @@ import {
   analyzeProjectBundle
 } from "../services/scanService.js";
 import { analyzeWithEngine } from "../services/engine/analysisPipeline.js";
+import { proposeFixes } from "../services/engine/ai/aiFixer.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { createAppError } from "../utils/errors.js";
 import { findScanById } from "../models/scanModel.js";
@@ -78,8 +79,19 @@ export const verifyController = asyncHandler(async (req, res) => {
 
 export const fixController = asyncHandler(async (req, res) => {
   const result = await transientAnalysis(req.body, { includeAi: false });
-  const candidates = result.findings.filter((item) => item.fixable).map((item) => ({ findingId: item.id, originalCode: item.originalCode, suggestedFix: item.suggestedFix || item.recommendation, verification: "NOT_RUN" }));
-  res.json({ status: "completed", fixes: candidates, verification: result.verification, note: "Fixes are proposals only. No patch is applied to submitted or stored code automatically." });
+
+  const mechanical = result.findings.filter((item) => item.fixable).map((item) => ({ findingId: item.id, originalCode: item.originalCode, suggestedFix: item.suggestedFix, verification: "NOT_RUN", source: "deterministic" }));
+
+  const aiResult = await proposeFixes({
+    source: req.body.code || req.body.source,
+    language: result.language,
+    sourceName: req.body.filename || "Live snippet",
+    findings: result.findings.filter((item) => !item.fixable)
+  });
+
+  const aiFixes = aiResult.fixes.map((item) => ({ findingId: item.findingId, suggestedFix: item.proposedFix, explanation: item.explanation, verification: "NOT_RUN", source: "ai" }));
+
+  res.json({ status: "completed", fixes: [...mechanical, ...aiFixes], aiStatus: aiResult.status, verification: result.verification, note: "Fixes are proposals only. No patch is applied to submitted or stored code automatically." });
 });
 
 export const getScanController = asyncHandler(async (req, res) => {
