@@ -22,7 +22,8 @@ Open `http://127.0.0.1:8080`, then sign in and open `Code Studio`. Run the autom
 - `optimizer.html` — original/proposed output and change explanation; it never applies an unverified change automatically.
 - `tests.html` — generated test code and available verification results; generated tests are never written into your project.
 - `architecture.html`, `dependencies.html` — static project structure and import/manifest metadata.
-- `assistant.html`, `git.html`, `analytics.html`, `settings.html` — connected assistant, CI template, stored analytics, and local-workspace settings views.
+- `assistant.html` — project-aware assistant. With a project selected and a key configured it answers from a lightweight index of stored project metadata plus up to three name-matched files, and lists the files it referenced; otherwise it falls back to the rule-based reply. Each answer is tagged `ai` or `rule-based`.
+- `git.html`, `analytics.html`, `settings.html` — CI template, stored analytics, and local-workspace settings views.
 
 Current project, selected file, and latest scan persist in browser local storage while the project data itself persists in the server database.
 
@@ -37,6 +38,8 @@ Fix, Optimize, and test generation are implemented and produce real output, but 
 These three endpoints each make at most one Gemini call per request. They share the 120 requests/minute rate limiter with every other endpoint. Transient `503 high demand` responses from the model are common; they degrade to `aiStatus: "unavailable"` (or `plan_only`) rather than failing or inventing a result.
 
 No sandboxed execution exists, so compilation, test-run, and regression verification report `not_available` by design (see Verification and security limits) — including for AI-generated tests, which are written but never run.
+
+The assistant (`POST /api/assistant/chat`) makes at most one Gemini call per question and only when a `projectId` is supplied and a key is configured. It never sends the whole project: the prompt carries file names, languages, manifests and architecture layers, plus the contents of at most three files whose names match the question. Because chat is asked far more often than Fix or Optimize, this endpoint is the most likely to exhaust a free-tier quota; on `429`/`503` it degrades to the rule-based reply rather than failing.
 
 **Known gap:** `ai/aiAnalyzer.js` still targets the retired `gemini-2.0-flash` model, so the optional AI reasoning step of `/api/scan` fails and silently contributes no findings. The newer modules use `GEMINI_MODEL` (default `gemini-3.6-flash`).
 

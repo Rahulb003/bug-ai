@@ -14,7 +14,7 @@ function summary(project) {
   };
 }
 
-async function requireProject(user, id) {
+export async function requireProject(user, id) {
   const project = await findProjectById(id);
   if (!project || project.ownerId !== user.id) throw createAppError(404, "Project not found.");
   return project;

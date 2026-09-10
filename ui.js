@@ -320,10 +320,10 @@ const App = (() => {
     });
   }
 
-  async function askAssistant(message, scanId) {
+  async function askAssistant(message, scanId, projectId) {
     return api("/assistant/chat", {
       method: "POST",
-      body: { message, scanId }
+      body: { message, scanId, projectId }
     });
   }
 

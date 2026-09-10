@@ -5,6 +5,8 @@ import { saveWorkspaceRecord } from "../models/workspaceModel.js";
 import { assertScanAccess, resolveWorkspaceForUser } from "./accessService.js";
 import { createAppError } from "../utils/errors.js";
 import { generateId } from "../utils/hash.js";
+import { requireProject } from "./projectService.js";
+import { answerProjectQuestion } from "./engine/ai/aiAssistant.js";
 
 async function ensureWorkspaceForUser(user) {
   const existing = await resolveWorkspaceForUser(user);
@@ -207,6 +209,81 @@ export async function markUserNotificationRead(user, notificationId) {
   return { notification };
 }
 
+const ASSISTANT_SUGGESTIONS = [
+  "Explain this bug",
+  "Why is the risk score high?",
+  "What should I fix first?",
+  "How can I improve code quality?"
+];
+
+// A thin projection of metadata the project already stores — no new index.
+export function buildProjectIndex(project) {
+  return {
+    name: project.name,
+    languages: project.metadata?.languages || [],
+    manifests: project.metadata?.manifests || [],
+    components: project.metadata?.architecture?.components || [],
+    fileList: (project.files || []).map((file) => ({ name: file.name, language: file.language })),
+    lastAnalysisSummary: project.lastAnalysis?.summary || null
+  };
+}
+
+// Keyword overlap on file names, deliberately not embeddings: enough to point
+// "where is authentication implemented" at auth-named files without a vector store.
+const STOP_WORDS = new Set(["the", "and", "for", "where", "what", "which", "how", "does", "did", "are", "was", "were", "this", "that", "with", "from", "into", "our", "you", "your", "can", "code", "file", "files", "project", "implemented", "implementation", "handled", "defined", "located"]);
+const PREFIX_MATCH = 4;
+
+function sharesPrefix(a, b) {
+  const limit = Math.min(a.length, b.length);
+  if (limit < PREFIX_MATCH) return false;
+  let shared = 0;
+  while (shared < limit && a[shared] === b[shared]) shared += 1;
+  return shared >= PREFIX_MATCH;
+}
+
+export function selectRelevantFiles(question, project, max = 3) {
+  const tokens = (String(question || "").toLowerCase().match(/[a-z]{3,}/g) || []).filter((token) => !STOP_WORDS.has(token));
+  return (project.files || [])
+    .map((file) => {
+      const nameLower = String(file.name || "").toLowerCase();
+      const nameTokens = nameLower.match(/[a-z]{2,}/g) || [];
+      // Plain substring alone would miss "authentication" -> authService.js, so
+      // also accept a shared word stem of at least four characters.
+      const score = tokens.filter((token) => nameLower.includes(token) || nameTokens.some((part) => sharesPrefix(part, token))).length;
+      return { file, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, max)
+    .map((entry) => entry.file);
+}
+
+export function keywordAssistantReply(latestScan, prompt) {
+  const lowerPrompt = String(prompt || "").toLowerCase();
+  let answer = "I can help explain the latest scan, summarize risk, or suggest the next remediation step.";
+  if (!latestScan) return answer;
+
+  if (lowerPrompt.includes("risk")) {
+    answer = `The current risk score is ${latestScan.riskScore}% with a ${latestScan.riskLevel} rating. The biggest drivers are ${latestScan.bugs.slice(0, 3).map((bug) => bug.title.toLowerCase()).join(", ") || "no active findings"}.`;
+  } else if (lowerPrompt.includes("fix") || lowerPrompt.includes("repair")) {
+    answer = latestScan.suggestedFixes.length
+      ? `Start with these fixes: ${latestScan.suggestedFixes.slice(0, 4).join(" ")}`
+      : "This scan does not have suggested fixes yet, so I would begin by re-running the scan on the exact source you want me to inspect.";
+  } else if (lowerPrompt.includes("explain") || lowerPrompt.includes("bug")) {
+    const firstBug = latestScan.bugs[0];
+    answer = firstBug
+      ? `${firstBug.title} is marked ${firstBug.severity}. It happens because ${firstBug.whyItHappens} The suggested fix is: ${firstBug.fix}`
+      : "The latest scan did not flag a bug, so the code currently looks relatively safe based on the active rules.";
+  } else if (lowerPrompt.includes("improve") || lowerPrompt.includes("quality")) {
+    // codeQualityScore is never computed by the pipeline; don't print "null" as a score.
+    const score = Number.isFinite(Number(latestScan.codeQualityScore)) && latestScan.codeQualityScore !== null
+      ? `Your quality score is ${latestScan.codeQualityScore}.`
+      : "A code quality score is not computed for this scan.";
+    answer = `${score} To improve quality quickly, reduce ${latestScan.bugs.length ? latestScan.bugs[0].category : "residual"} issues first, then rescan the fixed version to confirm the findings clear.`;
+  }
+  return answer;
+}
+
 export async function getAssistantReply(user, payload) {
   const prompt = String(payload.message || "").trim();
   if (!prompt) {
@@ -219,34 +296,26 @@ export async function getAssistantReply(user, payload) {
   }
 
   const latestScan = scan || (await getScansByUserId(user.id)).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-  const lowerPrompt = prompt.toLowerCase();
-  let answer = "I can help explain the latest scan, summarize risk, or suggest the next remediation step.";
+  // requireProject enforces ownership and throws 404 for another user's project.
+  const project = payload.projectId ? await requireProject(user, payload.projectId) : null;
 
-  if (latestScan) {
-    if (lowerPrompt.includes("risk")) {
-      answer = `The current risk score is ${latestScan.riskScore}% with a ${latestScan.riskLevel} rating. The biggest drivers are ${latestScan.bugs.slice(0, 3).map((bug) => bug.title.toLowerCase()).join(", ") || "no active findings"}.`;
-    } else if (lowerPrompt.includes("fix") || lowerPrompt.includes("repair")) {
-      answer = latestScan.suggestedFixes.length
-        ? `Start with these fixes: ${latestScan.suggestedFixes.slice(0, 4).join(" ")}`
-        : "This scan does not have suggested fixes yet, so I would begin by re-running the scan on the exact source you want me to inspect.";
-    } else if (lowerPrompt.includes("explain") || lowerPrompt.includes("bug")) {
-      const firstBug = latestScan.bugs[0];
-      answer = firstBug
-        ? `${firstBug.title} is marked ${firstBug.severity}. It happens because ${firstBug.whyItHappens} The suggested fix is: ${firstBug.fix}`
-        : "The latest scan did not flag a bug, so the code currently looks relatively safe based on the active rules.";
-    } else if (lowerPrompt.includes("improve") || lowerPrompt.includes("quality")) {
-      answer = `Your quality score is ${latestScan.codeQualityScore}. To improve it quickly, reduce ${latestScan.bugs.length ? latestScan.bugs[0].category : "residual"} issues first, then rescan the fixed version to confirm the score lifts.`;
+  if (project && process.env.GEMINI_API_KEY) {
+    const aiResult = await answerProjectQuestion({
+      question: prompt,
+      index: buildProjectIndex(project),
+      relevantFiles: selectRelevantFiles(prompt, project),
+      latestScan
+    });
+    if (aiResult.status === "completed") {
+      return { reply: aiResult.reply, referencedFiles: aiResult.referencedFiles, source: "ai", suggestions: ASSISTANT_SUGGESTIONS };
     }
   }
 
   return {
-    reply: answer,
-    suggestions: [
-      "Explain this bug",
-      "Why is the risk score high?",
-      "What should I fix first?",
-      "How can I improve code quality?"
-    ]
+    reply: keywordAssistantReply(latestScan, prompt),
+    referencedFiles: [],
+    source: "rule-based",
+    suggestions: ASSISTANT_SUGGESTIONS
   };
 }
 
