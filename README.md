@@ -46,7 +46,8 @@ No sandboxed execution exists, so compilation, test-run, and regression verifica
 
 - `languageRegistry.js` and `languageDetector.js` identify languages and tool capabilities.
 - `projectAnalyzer.js`, `dependencyAnalyzer.js`, and `architectureAnalyzer.js` preserve project file boundaries, detect manifests/tests/import relationships, and ignore dependency/generated directories.
-- `analyzers/` produces evidence-backed deterministic findings.
+- `analyzers/` produces evidence-backed deterministic findings, split by category (`syntaxAnalyzer.js`, `runtimeAnalyzer.js`, `securityAnalyzer.js`, `performanceAnalyzer.js`, `qualityAnalyzer.js`) over shared helpers in `shared.js`.
+- `analyzers/ast/jsAstAnalyzer.js` replaces the regex security and runtime rules for JavaScript and TypeScript with a real `@babel/parser` AST, matching node shapes instead of source text. This removes false positives the regex rules could not avoid (a `pattern.exec()` call or a method named `system()` were reported as code execution and command injection) and adds `BUGAI-RUN-004`, assignment used as a condition, which text matching cannot see. A parse failure falls back to the regex/syntax path for that file rather than dropping findings. Every other language stays on the regex analyzers.
 - `ai/` supplies optional, structured AI output without treating source content as instructions: `aiAnalyzer.js` (potential findings), `aiFixer.js` (patch proposals), `aiOptimizer.js` (optimizations), and `aiTestGenerator.js` (test code). Each degrades to a labelled "not available" result when no key is configured, the API fails, or the response is malformed.
 - `verification/` reports only checks that actually run. User code is never executed in the Node API process.
 

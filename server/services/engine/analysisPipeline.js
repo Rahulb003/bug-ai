@@ -5,6 +5,7 @@ import { runtimeAnalyzer } from "./analyzers/runtimeAnalyzer.js";
 import { securityAnalyzer } from "./analyzers/securityAnalyzer.js";
 import { performanceAnalyzer } from "./analyzers/performanceAnalyzer.js";
 import { qualityAnalyzer } from "./analyzers/qualityAnalyzer.js";
+import { jsAstAnalyzer } from "./analyzers/ast/jsAstAnalyzer.js";
 import { verifyStatic } from "./verification/verificationEngine.js";
 import { analyzeWithAi } from "./ai/aiAnalyzer.js";
 import { analyseProject } from "./projectAnalyzer.js";
@@ -18,7 +19,10 @@ function calculateRisk(summary) {
   return Math.min(100, summary.critical * 25 + summary.high * 15 + summary.medium * 7 + summary.low * 2);
 }
 function runDeterministic(input) {
-  return [syntaxAnalyzer, runtimeAnalyzer, securityAnalyzer, performanceAnalyzer, qualityAnalyzer].flatMap((analyzer) => analyzer(input));
+  const base = [syntaxAnalyzer, performanceAnalyzer, qualityAnalyzer].flatMap((analyzer) => analyzer(input));
+  // JS/TS get real AST analysis; every other language stays on the regex rules.
+  if (input.language === "javascript" || input.language === "typescript") return [...base, ...jsAstAnalyzer(input)];
+  return [...base, ...runtimeAnalyzer(input), ...securityAnalyzer(input)];
 }
 
 export async function analyzeWithEngine({ source, language = "auto", sourceName = "Live snippet", includeAi = true }) {
