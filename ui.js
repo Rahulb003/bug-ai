@@ -98,13 +98,17 @@ const App = (() => {
 
   function initTheme() {
     setTheme(localStorage.getItem("bugzero_theme") || "system");
-    const toggle = document.querySelector("[data-theme-toggle]");
-    toggle?.addEventListener("click", () => {
+    // Delegated: workspace pages render their shell after this runs, so a
+    // listener bound to the button directly would never attach there.
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest?.("[data-theme-toggle]")) return;
       const current = localStorage.getItem("bugzero_theme") || "system";
       const next = current === "dark" ? "light" : current === "light" ? "system" : "dark";
       setTheme(next);
       showToast(`Theme switched to ${next}.`, "success", "Display mode");
     });
+    // Refresh the toggle label once any late-rendered shell exists.
+    setTimeout(() => setTheme(localStorage.getItem("bugzero_theme") || "system"), 0);
   }
 
   function initReveal() {
