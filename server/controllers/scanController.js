@@ -5,6 +5,8 @@ import {
 } from "../services/scanService.js";
 import { analyzeWithEngine } from "../services/engine/analysisPipeline.js";
 import { proposeFixes } from "../services/engine/ai/aiFixer.js";
+import { proposeOptimization } from "../services/engine/ai/aiOptimizer.js";
+import { verifyStatic } from "../services/engine/verification/verificationEngine.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { createAppError } from "../utils/errors.js";
 import { findScanById } from "../models/scanModel.js";
@@ -63,8 +65,35 @@ export const analyzeController = asyncHandler(async (req, res) => {
 
 export const optimizeController = asyncHandler(async (req, res) => {
   const mode = ["safe", "performance", "readability", "maintainability", "security", "full"].includes(req.body.mode) ? req.body.mode : "safe";
+  const strictBehaviorPreservation = req.body.strictBehaviorPreservation !== false;
+  const originalCode = String(req.body.code || req.body.source || "");
   const result = await transientAnalysis(req.body, { includeAi: false });
-  res.json({ status: "completed", mode, strictBehaviorPreservation: req.body.strictBehaviorPreservation !== false, optimizedCode: String(req.body.code || req.body.source || ""), changes: result.findings.filter((item) => mode === "full" || item.category === "performance" || item.category === "quality" || item.category === "maintainability" || (mode === "security" && item.category === "security")).map((item) => ({ findingId: item.id, explanation: item.recommendation })), verification: result.verification, note: "No source was changed automatically; proposed changes require review and verification." });
+
+  const aiResult = await proposeOptimization({
+    source: originalCode,
+    language: result.language,
+    sourceName: req.body.filename || "Live snippet",
+    mode,
+    findings: result.findings,
+    strictBehaviorPreservation
+  });
+
+  const codeChanged = aiResult.optimizedCode !== originalCode;
+  const optimizedVerification = codeChanged ? verifyStatic({ source: aiResult.optimizedCode, language: result.language }) : result.verification;
+
+  res.json({
+    status: "completed",
+    mode,
+    strictBehaviorPreservation,
+    optimizedCode: aiResult.optimizedCode,
+    changes: aiResult.changes.map((item) => ({ category: item.category, explanation: item.explanation, source: "ai" })),
+    aiStatus: aiResult.status,
+    verification: result.verification,
+    optimizedVerification,
+    note: codeChanged
+      ? "AI-proposed optimization shown as a diff. No patch is applied automatically — review before adopting."
+      : "No safe transformation was produced for this mode. This is a review, not a claimed optimization."
+  });
 });
 
 export const generateTestsController = asyncHandler(async (req, res) => {
