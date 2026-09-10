@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard | BUG AI</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+</head>
+<body class="app-page">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand-lockup">
+        <div class="brand-mark">BZ</div>
+        <div>
+          <div>BUG AI</div>
+          <span class="brand-subtitle">Developer workspace</span>
+        </div>
+      </a>
+      <nav class="nav-links">
+        <a href="dashboard.html" class="active">Workspace</a>
+        <a href="history.html">History</a>
+        <a href="admin.html">Admin</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="theme-toggle" data-theme-toggle type="button">Theme</button>
+        <a class="btn btn-secondary" href="#" data-logout>Logout</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="workspace-shell">
+    <section class="section" style="padding-top:36px;">
+      <div class="section-head reveal">
+        <span class="eyebrow">Main tool</span>
+        <h2>Scan code, projects, and repositories from one premium workspace</h2>
+        <p>Paste code in the editor, upload source files or zip bundles, connect GitHub repos, and turn raw output into decision-ready reports.</p>
+      </div>
+
+      <div class="results-grid" style="margin-bottom:20px;">
+        <article class="metric-card panel reveal">
+          <span class="eyebrow">Signed in</span>
+          <strong data-user-name>Developer</strong>
+          <p>Active BUG AI workspace</p>
+        </article>
+        <article class="metric-card panel reveal">
+          <span class="eyebrow">Engine</span>
+          <strong>Hybrid AI</strong>
+          <p>Structured heuristics with model-enhanced reasoning</p>
+        </article>
+      </div>
+
+      <div class="workspace-grid">
+        <section class="panel reveal scan-panel">
+          <div class="panel-head">
+            <div>
+              <h3>Scan input</h3>
+              <p>Choose your preferred input method and launch analysis.</p>
+            </div>
+            <div class="tabs">
+              <button class="tab-button active" data-tab="paste" type="button">Paste code</button>
+              <button class="tab-button" data-tab="upload" type="button">Upload files</button>
+              <button class="tab-button" data-tab="github" type="button">GitHub repo</button>
+            </div>
+          </div>
+
+          <div class="tab-pane active" data-pane="paste">
+            <div class="select-row">
+              <select id="code-language">
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+                <option value="cpp">C++</option>
+                <option value="c">C</option>
+              </select>
+              <input id="code-filename" placeholder="optional filename e.g. service.py">
+            </div>
+            <div class="monaco-frame">
+              <div id="monaco-editor"></div>
+              <textarea id="editor-fallback" class="editor-fallback" style="display:none;">function process(items) {
+  while (true) {
+    const value = 10 / 0;
+    console.log(token);
+    return value;
+    console.log("dead code");
+  }
+}</textarea>
+            </div>
+            <div class="toolbar" style="margin-top:14px;">
+              <button class="btn btn-primary" type="button" id="scan-code-btn">Scan code</button>
+              <button class="btn btn-secondary" type="button" id="load-sample-btn">Load startup demo</button>
+            </div>
+          </div>
+
+          <div class="tab-pane" data-pane="upload">
+            <div class="dropzone" id="dropzone">
+              <strong>Drop source files or a project zip here</strong>
+              <p>.py .js .ts .java .cpp and .zip bundles are supported</p>
+              <button class="btn btn-secondary" type="button" id="browse-files-btn">Choose files</button>
+              <input id="project-input" type="file" multiple hidden>
+            </div>
+            <div id="upload-summary" style="margin-top:16px;"></div>
+            <div class="toolbar" style="margin-top:14px;">
+              <button class="btn btn-primary" type="button" id="scan-upload-btn">Analyze project</button>
+            </div>
+          </div>
+
+          <div class="tab-pane" data-pane="github">
+            <div class="field">
+              <label for="repo-url">Public GitHub repository URL</label>
+              <input id="repo-url" placeholder="https://github.com/owner/repository">
+            </div>
+            <div class="toolbar" style="margin-top:14px;">
+              <button class="btn btn-primary" type="button" id="scan-github-btn">Scan repository</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel reveal results-panel">
+          <div class="panel-head">
+            <div>
+              <h3>Scan results</h3>
+              <p>Premium visual summary with fixes, severity labels, and export actions.</p>
+            </div>
+            <div class="report-actions">
+              <select id="report-export-format">
+                <option value="pdf">PDF</option>
+                <option value="csv">CSV</option>
+                <option value="json">JSON</option>
+                <option value="excel">Excel</option>
+              </select>
+              <button class="btn btn-secondary" type="button" id="toggle-results-size-btn">Expand view</button>
+              <button class="btn btn-secondary" type="button" id="download-report-btn">Download report</button>
+              <button class="btn btn-secondary" type="button" id="share-report-btn">Share report</button>
+            </div>
+          </div>
+          <div id="results-root" class="comparison-box">
+            <div class="empty-state">
+              <h3>No scan yet</h3>
+              <p>Your first code report will appear here as a compact step-by-step navigator beside the editor.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="admin-grid" style="margin-top:20px;">
+        <section class="panel reveal">
+          <div class="panel-head">
+            <div>
+              <h3>AI teammate</h3>
+              <p>Ask the built-in assistant to explain findings, prioritize fixes, or improve code quality.</p>
+            </div>
+          </div>
+          <div class="comparison-box">
+            <div id="assistant-thread" class="cluster-scroll-area">
+              <div class="empty-state">
+                <p>Ask things like "Explain this bug" or "Why is the risk score high?"</p>
+              </div>
+            </div>
+            <textarea id="assistant-input" rows="3" placeholder="Explain this bug and tell me what to fix first"></textarea>
+            <div class="toolbar">
+              <button class="btn btn-primary" type="button" id="assistant-send-btn">Ask assistant</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel reveal">
+          <div class="panel-head">
+            <div>
+              <h3>Team workspace</h3>
+              <p>Invite teammates, monitor roles, and keep shared report collaboration in one place.</p>
+            </div>
+          </div>
+          <div id="workspace-root" class="comparison-box">
+            <div class="empty-state"><p>Loading workspace intelligence...</p></div>
+          </div>
+        </section>
+
+        <section class="panel reveal">
+          <div class="panel-head">
+            <div>
+              <h3>Notifications</h3>
+              <p>Track completed scans, new bug signals, and workspace events.</p>
+            </div>
+          </div>
+          <div id="notifications-root" class="comparison-box">
+            <div class="empty-state"><p>Loading notifications...</p></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="admin-grid" style="margin-top:20px;">
+        <section class="panel reveal">
+          <div class="panel-head">
+            <div>
+              <h3>Platform analytics</h3>
+              <p>Risk movement, severity totals, and scan volume for your workspace.</p>
+            </div>
+          </div>
+          <div id="analytics-root" class="comparison-box">
+            <div class="empty-state"><p>Loading analytics...</p></div>
+          </div>
+        </section>
+
+        <section class="panel reveal">
+          <div class="panel-head">
+            <div>
+              <h3>DevOps integration</h3>
+              <p>Ready-made CI templates for GitHub Actions, GitLab CI, and Jenkins.</p>
+            </div>
+          </div>
+          <div id="devops-root" class="comparison-box">
+            <div class="empty-state"><p>Loading templates...</p></div>
+          </div>
+        </section>
+
+        <section class="panel reveal">
+          <div class="panel-head">
+            <div>
+              <h3>Report comments</h3>
+              <p>Keep scan discussions attached to the report instead of losing them in chat.</p>
+            </div>
+          </div>
+          <div class="comparison-box">
+            <div id="comments-root" class="cluster-scroll-area">
+              <div class="empty-state"><p>Run a scan to start commenting on a report.</p></div>
+            </div>
+            <textarea id="report-comment-input" rows="3" placeholder="Leave a note for your team about this report"></textarea>
+            <div class="toolbar">
+              <button class="btn btn-primary" type="button" id="add-comment-btn">Add comment</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel reveal">
+          <div class="panel-head">
+            <div>
+              <h3>Project showcase</h3>
+              <p>Architecture and evaluation status for this installation.</p>
+            </div>
+          </div>
+          <div class="comparison-box">
+            <div class="comparison-metric"><span>Architecture</span><strong>Client -> API -> Scanner Engine -> Reports</strong></div>
+            <div class="comparison-metric"><span>Evaluation benchmark</span><strong>Not configured</strong></div>
+            <div class="comparison-metric"><span>Precision / Recall / F1</span><strong>Unavailable until benchmarked</strong></div>
+            <div class="comparison-metric"><span>Model workflow</span><strong>Input normalization -> Heuristics -> AI reasoning -> Fix generation</strong></div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="ui.js"></script>
+  <script>
+    App.requireAuth();
+
+    const tabs = document.querySelectorAll("[data-tab]");
+    const panes = document.querySelectorAll("[data-pane]");
+    const workspaceGrid = document.querySelector(".workspace-grid");
+    const toggleResultsSizeBtn = document.getElementById("toggle-results-size-btn");
+    let editor;
+    let currentScan = null;
+    let projectFiles = [];
+    let chart;
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((item) => item.classList.toggle("active", item === tab));
+        panes.forEach((pane) => pane.classList.toggle("active", pane.dataset.pane === tab.dataset.tab));
+      });
+    });
+
+    toggleResultsSizeBtn?.addEventListener("click", () => {
+      workspaceGrid.classList.toggle("results-focus-mode");
+      const expanded = workspaceGrid.classList.contains("results-focus-mode");
+      toggleResultsSizeBtn.textContent = expanded ? "Compact view" : "Expand view";
+      toggleResultsSizeBtn.setAttribute("aria-pressed", expanded ? "true" : "false");
+      App.showToast(expanded ? "Results panel expanded." : "Results panel restored.");
+    });
+
+    const sampleCode = `def process_items(items)
+    while True:
+        result = 10 / 0
+        print("token", api_token)
+        return result
+        print("dead code")`;
+
+    function getEditorValue() {
+      return editor ? editor.getValue() : document.getElementById("editor-fallback").value;
+    }
+
+    function setEditorValue(value) {
+      if (editor) editor.setValue(value);
+      document.getElementById("editor-fallback").value = value;
+    }
+
+    function activateTab(tabName) {
+      tabs.forEach((item) => item.classList.toggle("active", item.dataset.tab === tabName));
+      panes.forEach((pane) => pane.classList.toggle("active", pane.dataset.pane === tabName));
+    }
+
+    function applyScanLanguage(scan) {
+      const languageSelect = document.getElementById("code-language");
+      if ([...languageSelect.options].some((option) => option.value === scan.language)) {
+        languageSelect.value = scan.language;
+        if (editor) {
+          monaco.editor.setModelLanguage(editor.getModel(), scan.language === "cpp" ? "cpp" : scan.language);
+        }
+      }
+    }
+
+    async function copyText(text, successMessage) {
+      await navigator.clipboard.writeText(text);
+      App.showToast(successMessage);
+    }
+
+    function appendAssistantMessage(author, message) {
+      const thread = document.getElementById("assistant-thread");
+      const empty = thread.querySelector(".empty-state");
+      if (empty) empty.remove();
+      const item = document.createElement("article");
+      item.className = "issue-item";
+      item.innerHTML = `<strong>${author}</strong><p>${escapeHtml(message)}</p>`;
+      thread.appendChild(item);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function getScanSource(scan) {
+      if (scan.sourceCode) return scan.sourceCode;
+      if (scan.inputType === "code") return getEditorValue();
+      return scan.sourcePreview || "";
+    }
+
+    function scanSummaryText(scan) {
+      if (typeof scan.summary === "string") return scan.summary;
+      const total = scan.summary?.totalFindings ?? scan.bugs?.length ?? 0;
+      return total ? `${total} evidence-backed finding${total === 1 ? "" : "s"} detected.` : "No detected issues from the available static checks.";
+    }
+
+    function renderCodeBlock(code, highlightedLines = []) {
+      const highlightSet = new Set((highlightedLines || []).map((line) => Number(line)));
+      return String(code || "")
+        .split(/\r?\n/)
+        .map((line, index) => {
+          const lineNumber = index + 1;
+          const highlight = highlightSet.has(lineNumber);
+          return `
+            <div style="display:grid;grid-template-columns:56px 1fr;gap:12px;padding:4px 0;background:${highlight ? "rgba(255,88,116,0.12)" : "transparent"};border-left:${highlight ? "3px solid #ff5874" : "3px solid transparent"};">
+              <span style="color:var(--muted);text-align:right;user-select:none;">${lineNumber}</span>
+              <span>${escapeHtml(line) || "&nbsp;"}</span>
+            </div>
+          `;
+        })
+        .join("");
+    }
+
+    function buildClusterSlides(scan, sourceCode) {
+      const fixedCode = scan.fixedCode || sourceCode;
+
+      return [
+        {
+          label: "Overview",
+          tone: "Risk pulse",
+          title: "Scan snapshot",
+          description: scanSummaryText(scan),
+          body: `
+            <div class="cluster-metrics-grid">
+              <article class="cluster-metric-card">
+                <span class="eyebrow">Risk</span>
+                <strong>${scan.riskScore}%</strong>
+                <p>Prioritisation score; it is not an accuracy metric.</p>
+              </article>
+              <article class="cluster-metric-card">
+                <span class="eyebrow">Bugs</span>
+                <strong>${scan.bugs.length}</strong>
+                <p>${scan.metrics.totalLines} lines scanned.</p>
+              </article>
+              <article class="cluster-metric-card">
+                <span class="eyebrow">Evaluation</span>
+                <strong>${scan.evaluation?.status === "not_configured" ? "N/A" : (scan.codeQualityScore ?? "N/A")}</strong>
+                <p>${scan.evaluation?.message || "No benchmark metric is available."}</p>
+              </article>
+              <article class="cluster-metric-card">
+                <span class="eyebrow">Confidence</span>
+                <strong>${scan.confidence}%</strong>
+                <p>Average evidence confidence; AI suggestions remain potential.</p>
+              </article>
+            </div>
+            <div class="cluster-status-row">
+              <span class="badge critical">Critical ${scan.severityBreakdown.critical}</span>
+              <span class="badge high">High ${scan.severityBreakdown.high}</span>
+              <span class="badge medium">Medium ${scan.severityBreakdown.medium}</span>
+              <span class="badge low">Low ${scan.severityBreakdown.low}</span>
+            </div>
+            <div class="cluster-chart-card">
+              <canvas id="severity-chart" height="180"></canvas>
+            </div>
+          `
+        },
+        {
+          label: "Error lines",
+          tone: "Exact spots",
+          title: scan.bugs.length ? "Flagged lines and snippets" : "No risky lines flagged",
+          description: scan.bugs.length
+            ? "Jump through the exact lines that triggered the analysis."
+            : "This scan did not produce specific flagged lines.",
+          body: `
+            <div class="cluster-status-row">
+              ${scan.vulnerableLines.length
+                ? scan.vulnerableLines.map((line) => `<span class="chip high">Line ${line}</span>`).join("")
+                : '<span class="chip low">No risky lines highlighted</span>'}
+            </div>
+            <div class="cluster-scroll-area">
+              ${scan.bugs.length ? scan.bugs.map((bug) => `
+                <article class="issue-item">
+                  <div class="issue-meta">
+                    <div>
+                      <strong>Line ${bug.line}</strong>
+                      <p>${bug.title}</p>
+                    </div>
+                    <span class="badge ${App.formatSeverityClass(bug.severity)}">${bug.severity.toUpperCase()}</span>
+                  </div>
+                  <pre class="issue-code">${escapeHtml(bug.snippet || "// snippet unavailable")}</pre>
+                </article>
+              `).join("") : '<div class="cluster-empty-note">No line-level errors to inspect in this scan.</div>'}
+            </div>
+          `
+        },
+        {
+          label: "Issue guide",
+          tone: "Why it broke",
+          title: scan.bugs.length ? "Explanations and fix hints" : "No bug guide needed",
+          description: scan.bugs.length
+            ? "Review each issue, why it happens, and what the fixer changed."
+            : "There are no issue cards for this scan.",
+          body: `
+            <div class="cluster-suggestion-card">
+              <h4>Fix checklist</h4>
+              <ul class="check-list">
+                ${scan.suggestedFixes.length
+                  ? scan.suggestedFixes.map((item) => `<li>${item}</li>`).join("")
+                  : "<li>No suggestions generated.</li>"}
+              </ul>
+            </div>
+            <div class="cluster-scroll-area">
+              ${scan.bugs.length ? scan.bugs.map((bug) => `
+                <article class="issue-item">
+                  <div class="issue-meta">
+                    <div>
+                      <strong>Line ${bug.line}: ${bug.title}</strong>
+                      <p>${bug.category}</p>
+                    </div>
+                    <span class="badge ${App.formatSeverityClass(bug.severity)}">${bug.severity.toUpperCase()}</span>
+                  </div>
+                  <p>${bug.explanation}</p>
+                  <p><strong>Why it happens:</strong> ${bug.whyItHappens}</p>
+                  <p><strong>Suggested fix:</strong> ${bug.fix}</p>
+                </article>
+              `).join("") : '<div class="cluster-empty-note">No issue explanations for this scan.</div>'}
+            </div>
+          `
+        },
+        {
+          label: "Verification",
+          tone: "Truthful checks",
+          title: scan.verification?.status?.replaceAll("_", " ") || "NOT RUN",
+          description: "Only completed checks are reported as completed. User code is not run in this server.",
+          body: `<div class="cluster-suggestion-card"><h4>Verification status</h4><ul class="check-list">
+            <li>Syntax: ${scan.verification?.syntax || "not run"}</li>
+            <li>Compilation: ${scan.verification?.compilation?.status || "not available"}</li>
+            <li>Type checking: ${scan.verification?.typeCheck?.status || "not available"}</li>
+            <li>Security: ${scan.verification?.security?.status || scan.verification?.security || "not run"}</li>
+            <li>Tests: ${scan.verification?.tests?.status || "not run"}</li>
+            <li>Regression: ${scan.verification?.regression?.status || "not run"}</li>
+          </ul></div>`
+        },
+        {
+          label: "Original",
+          tone: "Source view",
+          title: "Original code with highlights",
+          description: "The red-marked rows are the lines the analyzer focused on.",
+          body: `
+            <div class="cluster-actions">
+              <button class="btn btn-secondary" type="button" data-copy-source>Copy original code</button>
+            </div>
+            <div class="cluster-code-window issue-code">${renderCodeBlock(sourceCode, scan.vulnerableLines)}</div>
+          `
+        },
+        {
+          label: "Fixed",
+          tone: "Repair output",
+          title: "Fix proposal",
+          description: "BUG AI does not apply unverified changes automatically. Review the suggested fixes before editing.",
+          body: `
+            <div class="cluster-actions">
+              <button class="btn btn-secondary" type="button" data-copy-fixed>Copy current code</button>
+              <button class="btn btn-secondary" type="button" data-use-fixed>Load into editor</button>
+              <button class="btn btn-primary" type="button" data-rescan-fixed>Rescan code</button>
+            </div>
+            <div class="cluster-code-window issue-code">${renderCodeBlock(fixedCode)}</div>
+          `
+        }
+      ];
+    }
+
+    function renderResults(scan) {
+      currentScan = scan;
+      const sourceCode = getScanSource(scan);
+      const slides = buildClusterSlides(scan, sourceCode);
+      const root = document.getElementById("results-root");
+      root.innerHTML = `
+        <div class="results-cluster-shell" tabindex="0">
+          <div class="cluster-topbar">
+            <div class="cluster-intro">
+              <span class="eyebrow">Cluster view</span>
+              <h3>${scan.sourceName}</h3>
+              <p>Everything is grouped into guided stages so you can inspect the scan without long page scrolling.</p>
+            </div>
+            <div class="cluster-controls">
+              <button class="cluster-arrow" type="button" data-cluster-prev title="Previous section">↑</button>
+              <div class="cluster-counter">
+                <strong data-cluster-current>1</strong>
+                <span>/ ${slides.length}</span>
+              </div>
+              <button class="cluster-arrow" type="button" data-cluster-next title="Next section">↓</button>
+            </div>
+          </div>
+          <div class="cluster-tabs">
+            ${slides.map((slide, index) => `
+              <button class="cluster-tab ${index === 0 ? "active" : ""}" type="button" data-cluster-tab="${index}">
+                <span>${slide.tone}</span>
+                <strong>${slide.label}</strong>
+              </button>
+            `).join("")}
+          </div>
+          <div class="cluster-stage">
+            ${slides.map((slide, index) => `
+              <section class="cluster-slide ${index === 0 ? "active" : ""}" data-cluster-slide="${index}">
+                <div class="cluster-slide-head">
+                  <div>
+                    <span class="eyebrow">${slide.tone}</span>
+                    <h3>${slide.title}</h3>
+                    <p>${slide.description}</p>
+                  </div>
+                </div>
+                <div class="cluster-slide-body">
+                  ${slide.body}
+                </div>
+              </section>
+            `).join("")}
+          </div>
+          <div class="cluster-footer">
+            <p>Use the arrows to move through the report one section at a time.</p>
+          </div>
+        </div>
+      `;
+
+      loadComments(scan.id);
+
+      let activeClusterIndex = 0;
+      const clusterShell = root.querySelector(".results-cluster-shell");
+      const clusterTabs = Array.from(root.querySelectorAll("[data-cluster-tab]"));
+      const clusterSlides = Array.from(root.querySelectorAll("[data-cluster-slide]"));
+      const prevButton = root.querySelector("[data-cluster-prev]");
+      const nextButton = root.querySelector("[data-cluster-next]");
+      const currentCounter = root.querySelector("[data-cluster-current]");
+
+      function setClusterSlide(nextIndex) {
+        activeClusterIndex = Math.max(0, Math.min(slides.length - 1, nextIndex));
+        clusterTabs.forEach((tab, index) => tab.classList.toggle("active", index === activeClusterIndex));
+        clusterSlides.forEach((slide, index) => slide.classList.toggle("active", index === activeClusterIndex));
+        currentCounter.textContent = String(activeClusterIndex + 1);
+        prevButton.disabled = activeClusterIndex === 0;
+        nextButton.disabled = activeClusterIndex === slides.length - 1;
+      }
+
+      prevButton?.addEventListener("click", () => setClusterSlide(activeClusterIndex - 1));
+      nextButton?.addEventListener("click", () => setClusterSlide(activeClusterIndex + 1));
+      clusterTabs.forEach((tab) => {
+        tab.addEventListener("click", () => setClusterSlide(Number(tab.dataset.clusterTab)));
+      });
+      clusterShell?.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+          event.preventDefault();
+          setClusterSlide(activeClusterIndex + 1);
+        }
+        if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+          event.preventDefault();
+          setClusterSlide(activeClusterIndex - 1);
+        }
+      });
+
+      root.querySelector("[data-copy-source]")?.addEventListener("click", async () => {
+        try {
+          await copyText(sourceCode, "Original code copied.");
+        } catch (error) {
+          App.showToast(error.message, "error", "Copy failed");
+        }
+      });
+
+      root.querySelector("[data-copy-fixed]")?.addEventListener("click", async () => {
+        try {
+          await copyText(scan.fixedCode || sourceCode, "Fixed code copied.");
+        } catch (error) {
+          App.showToast(error.message, "error", "Copy failed");
+        }
+      });
+
+      root.querySelector("[data-use-fixed]")?.addEventListener("click", () => {
+        activateTab("paste");
+        applyScanLanguage(scan);
+        setEditorValue(scan.fixedCode || sourceCode);
+        document.getElementById("code-filename").value = scan.sourceName || document.getElementById("code-filename").value;
+        App.showToast("Fixed code loaded into the editor.");
+      });
+
+      root.querySelector("[data-rescan-fixed]")?.addEventListener("click", () => {
+        activateTab("paste");
+        applyScanLanguage(scan);
+        setEditorValue(scan.fixedCode || sourceCode);
+        document.getElementById("code-filename").value = scan.sourceName || document.getElementById("code-filename").value;
+        runScan(() => App.api("/scan-code", {
+          method: "POST",
+          body: {
+            code: scan.fixedCode || sourceCode,
+            language: document.getElementById("code-language").value,
+            filename: document.getElementById("code-filename").value
+          }
+        }));
+      });
+
+      setClusterSlide(0);
+
+      const ctx = document.getElementById("severity-chart");
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["Critical", "High", "Medium", "Low"],
+          datasets: [{
+            data: [
+              scan.severityBreakdown.critical,
+              scan.severityBreakdown.high,
+              scan.severityBreakdown.medium,
+              scan.severityBreakdown.low
+            ],
+            backgroundColor: ["#ff5874", "#ff8c6b", "#ffb347", "#44d28c"]
+          }]
+        },
+        options: {
+          plugins: {
+            legend: {
+              labels: {
+                color: getComputedStyle(document.documentElement).getPropertyValue("--text")
+              }
+            }
+          }
+        }
+      });
+    }
+
+    async function runScan(handler) {
+      const root = document.getElementById("results-root");
+      root.innerHTML = App.createLoadingMarkup();
+      try {
+        const scan = await handler();
+        renderResults(scan);
+        await Promise.all([loadWorkspaceIntel(), loadNotifications(), loadAnalyticsIntel()]);
+        App.showToast("Scan completed successfully.");
+      } catch (error) {
+        root.innerHTML = `<div class="empty-state"><h3>Scan failed</h3><p>${error.message}</p></div>`;
+        App.showToast(error.message, "error", "Scan failed");
+      }
+    }
+
+    document.getElementById("scan-code-btn").addEventListener("click", () => runScan(() => App.api("/scan-code", {
+      method: "POST",
+      body: {
+        code: getEditorValue(),
+        language: document.getElementById("code-language").value,
+        filename: document.getElementById("code-filename").value
+      }
+    })));
+
+    document.getElementById("scan-upload-btn").addEventListener("click", () => runScan(() => App.api("/upload-project", {
+      method: "POST",
+      body: {
+        projectName: "Uploaded project",
+        files: projectFiles
+      }
+    })));
+
+    document.getElementById("scan-github-btn").addEventListener("click", () => runScan(() => App.api("/scan-github", {
+      method: "POST",
+      body: {
+        repoUrl: document.getElementById("repo-url").value
+      }
+    })));
+
+    document.getElementById("load-sample-btn").addEventListener("click", () => setEditorValue(sampleCode));
+
+    document.getElementById("download-report-btn").addEventListener("click", () => {
+      if (!currentScan) return App.showToast("Run a scan first.", "warning", "No report");
+      const format = document.getElementById("report-export-format").value;
+      if (format === "pdf") {
+        App.printReport(currentScan);
+        return;
+      }
+      App.exportReport(currentScan.id, format)
+        .then(() => App.showToast(`${format.toUpperCase()} report downloaded.`))
+        .catch((error) => App.showToast(error.message, "error", "Export failed"));
+    });
+
+    document.getElementById("share-report-btn").addEventListener("click", async () => {
+      if (!currentScan) return App.showToast("Run a scan first.", "warning", "No report");
+      try {
+        const share = await App.api(`/history/${currentScan.id}/share`, { method: "POST" });
+        await navigator.clipboard.writeText(`${window.location.origin}${share.url}`);
+        App.showToast("Share link copied to clipboard.");
+      } catch (error) {
+        App.showToast(error.message, "error", "Share failed");
+      }
+    });
+
+    async function loadFilesFromSelection(files) {
+      const list = Array.from(files || []);
+      if (!list.length) return;
+      const result = [];
+      for (const file of list) {
+        if (file.name.toLowerCase().endsWith(".zip")) {
+          const zip = await JSZip.loadAsync(file);
+          const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+          for (const entry of entries) {
+            if (!/\.(js|jsx|mjs|cjs|ts|tsx|py|java|cpp|cc|cxx|c|cs|go|rs|rb|php|swift|kt|kts|sql|sh|bash|html|htm|css|dart|r)$/i.test(entry.name) && !/(^|\/)(package(?:-lock)?\.json|requirements\.txt|pyproject\.toml|pom\.xml|build\.gradle|go\.mod|Cargo\.toml|composer\.json|Gemfile)$/i.test(entry.name)) continue;
+            const content = await entry.async("string");
+            result.push({ name: entry.name, content });
+          }
+        } else {
+          const content = await file.text();
+          result.push({ name: file.name, content });
+        }
+      }
+      projectFiles = result;
+      document.getElementById("upload-summary").innerHTML = result.length
+        ? `<div class="panel"><strong>${result.length}</strong> source files ready for analysis.</div>`
+        : `<div class="panel"><p>No supported source files detected.</p></div>`;
+    }
+
+    const projectInput = document.getElementById("project-input");
+    const dropzone = document.getElementById("dropzone");
+    document.getElementById("browse-files-btn").addEventListener("click", () => projectInput.click());
+    projectInput.addEventListener("change", () => loadFilesFromSelection(projectInput.files));
+    ["dragenter", "dragover"].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropzone.classList.add("dragging");
+      });
+    });
+    ["dragleave", "drop"].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropzone.classList.remove("dragging");
+      });
+    });
+    dropzone.addEventListener("drop", (event) => loadFilesFromSelection(event.dataTransfer.files));
+
+    async function loadWorkspaceIntel() {
+      const root = document.getElementById("workspace-root");
+      try {
+        const data = await App.getWorkspace();
+        root.innerHTML = `
+          <div class="comparison-metric"><span>Workspace</span><strong>${data.workspace.name}</strong></div>
+          <div class="comparison-metric"><span>Your access</span><strong>${data.workspace.currentMemberRole}</strong></div>
+          <div class="comparison-metric"><span>Bug-free streak</span><strong>${data.gamification.bugFreeStreak}</strong></div>
+          <div class="comparison-metric"><span>Quality rank</span><strong>${data.gamification.qualityRank}</strong></div>
+          <div class="badge-row">
+            ${data.gamification.achievements.length
+              ? data.gamification.achievements.map((badge) => `<span class="badge low">${badge.label}</span>`).join("")
+              : '<span class="badge medium">No achievements yet</span>'}
+          </div>
+          <div class="cluster-scroll-area">
+            ${data.workspace.memberProfiles.map((member) => `
+              <article class="issue-item">
+                <div class="issue-meta">
+                  <div>
+                    <strong>${member.name}</strong>
+                    <p>${member.email}</p>
+                  </div>
+                  <span class="badge ${member.role === "admin" ? "critical" : member.role === "viewer" ? "low" : "high"}">${member.role}</span>
+                </div>
+              </article>
+            `).join("")}
+          </div>
+          <div class="field">
+            <label for="invite-email">Invite teammate</label>
+            <input id="invite-email" placeholder="teammate@example.com">
+          </div>
+          <div class="select-row">
+            <select id="invite-role">
+              <option value="member">Member</option>
+              <option value="viewer">Viewer</option>
+              <option value="admin">Admin</option>
+            </select>
+            <button class="btn btn-primary" type="button" id="invite-btn" ${data.workspace.currentMemberRole === "viewer" ? "disabled" : ""}>Send invite</button>
+          </div>
+          <div>
+            <strong style="display:block;margin-bottom:12px;">Leaderboard</strong>
+            ${data.leaderboard.map((entry, index) => `<div class="comparison-metric"><span>#${index + 1} ${entry.username}</span><strong>${entry.score}</strong></div>`).join("")}
+          </div>
+        `;
+
+        document.getElementById("invite-btn")?.addEventListener("click", async () => {
+          try {
+            await App.inviteTeammate({
+              email: document.getElementById("invite-email").value,
+              role: document.getElementById("invite-role").value
+            });
+            App.showToast("Teammate invited.");
+            loadWorkspaceIntel();
+            loadNotifications();
+          } catch (error) {
+            App.showToast(error.message, "error", "Invite failed");
+          }
+        });
+      } catch (error) {
+        root.innerHTML = `<div class="empty-state"><p>${error.message}</p></div>`;
+      }
+    }
+
+    async function loadNotifications() {
+      const root = document.getElementById("notifications-root");
+      try {
+        const data = await App.getNotifications();
+        root.innerHTML = data.notifications.length
+          ? data.notifications.map((item) => `
+              <article class="issue-item">
+                <div class="issue-meta">
+                  <div>
+                    <strong>${item.title}</strong>
+                    <p>${item.message}</p>
+                  </div>
+                  <button class="btn btn-secondary" type="button" data-read-note="${item.id}">${item.read ? "Read" : "Mark read"}</button>
+                </div>
+              </article>
+            `).join("")
+          : `<div class="empty-state"><p>No notifications yet.</p></div>`;
+
+        root.querySelectorAll("[data-read-note]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            try {
+              await App.markNotificationRead(button.dataset.readNote);
+              loadNotifications();
+            } catch (error) {
+              App.showToast(error.message, "error", "Notification failed");
+            }
+          });
+        });
+      } catch (error) {
+        root.innerHTML = `<div class="empty-state"><p>${error.message}</p></div>`;
+      }
+    }
+
+    async function loadAnalyticsIntel() {
+      const root = document.getElementById("analytics-root");
+      try {
+        const data = await App.getAnalytics();
+        root.innerHTML = `
+          <div class="results-grid">
+            <article class="metric-card panel">
+              <span class="eyebrow">Scans</span>
+              <strong>${data.totals.scans}</strong>
+              <p>Total saved analyses</p>
+            </article>
+            <article class="metric-card panel">
+              <span class="eyebrow">Latest risk</span>
+              <strong>${data.totals.latestRisk}%</strong>
+              <p>Most recent report pulse</p>
+            </article>
+          </div>
+          <div class="comparison-metric"><span>Average quality score</span><strong>${data.totals.avgQuality}</strong></div>
+          <div class="badge-row">
+            <span class="badge critical">Critical ${data.severityTotals.critical}</span>
+            <span class="badge high">High ${data.severityTotals.high}</span>
+            <span class="badge medium">Medium ${data.severityTotals.medium}</span>
+            <span class="badge low">Low ${data.severityTotals.low}</span>
+          </div>
+          <div>
+            <strong style="display:block;margin-bottom:12px;">Weekly scan volume</strong>
+            ${Object.entries(data.analytics.scansByDay).slice(-7).map(([day, count]) => `
+              <div class="comparison-metric">
+                <span>${day}</span>
+                <strong>${count}</strong>
+              </div>
+            `).join("") || '<div class="empty-state"><p>No daily trend data yet.</p></div>'}
+          </div>
+        `;
+      } catch (error) {
+        root.innerHTML = `<div class="empty-state"><p>${error.message}</p></div>`;
+      }
+    }
+
+    async function loadDevopsTemplates() {
+      const root = document.getElementById("devops-root");
+      try {
+        const data = await App.getDevopsTemplates();
+        root.innerHTML = `
+          <article class="issue-item">
+            <div class="issue-meta">
+              <strong>GitHub Actions</strong>
+              <button class="btn btn-secondary" type="button" data-copy-template="githubActions">Copy</button>
+            </div>
+            <pre class="issue-code">${escapeHtml(data.githubActions)}</pre>
+          </article>
+          <article class="issue-item">
+            <div class="issue-meta">
+              <strong>GitLab CI</strong>
+              <button class="btn btn-secondary" type="button" data-copy-template="gitlabCi">Copy</button>
+            </div>
+            <pre class="issue-code">${escapeHtml(data.gitlabCi)}</pre>
+          </article>
+          <article class="issue-item">
+            <div class="issue-meta">
+              <strong>Jenkins</strong>
+              <button class="btn btn-secondary" type="button" data-copy-template="jenkins">Copy</button>
+            </div>
+            <pre class="issue-code">${escapeHtml(data.jenkins)}</pre>
+          </article>
+        `;
+
+        root.querySelectorAll("[data-copy-template]").forEach((button) => {
+          button.addEventListener("click", () => copyText(data[button.dataset.copyTemplate], "Template copied."));
+        });
+      } catch (error) {
+        root.innerHTML = `<div class="empty-state"><p>${error.message}</p></div>`;
+      }
+    }
+
+    function renderComments(comments = []) {
+      const root = document.getElementById("comments-root");
+      if (!comments.length) {
+        root.innerHTML = `<div class="empty-state"><p>No report comments yet.</p></div>`;
+        return;
+      }
+
+      root.innerHTML = comments.map((comment) => `
+        <article class="issue-item">
+          <div class="issue-meta">
+            <div>
+              <strong>${escapeHtml(comment.authorName)}</strong>
+              <p>${new Date(comment.createdAt).toLocaleString()}</p>
+            </div>
+          </div>
+          <p>${escapeHtml(comment.message)}</p>
+        </article>
+      `).join("");
+    }
+
+    async function loadComments(scanId) {
+      try {
+        const data = await App.getComments(scanId);
+        renderComments(data.comments);
+      } catch {
+        document.getElementById("comments-root").innerHTML = `<div class="empty-state"><p>Comments could not be loaded.</p></div>`;
+      }
+    }
+
+    document.getElementById("assistant-send-btn").addEventListener("click", async () => {
+      const input = document.getElementById("assistant-input");
+      const message = input.value.trim();
+      if (!message) return;
+
+      appendAssistantMessage("You", message);
+      input.value = "";
+
+      try {
+        const data = await App.askAssistant(message, currentScan?.id);
+        appendAssistantMessage("BugZero AI", data.reply);
+      } catch (error) {
+        App.showToast(error.message, "error", "Assistant failed");
+      }
+    });
+
+    document.getElementById("add-comment-btn").addEventListener("click", async () => {
+      if (!currentScan?.id) {
+        App.showToast("Run a scan first.", "warning", "No report");
+        return;
+      }
+
+      const input = document.getElementById("report-comment-input");
+      const message = input.value.trim();
+      if (!message) return;
+
+      try {
+        const data = await App.addComment(currentScan.id, message);
+        input.value = "";
+        renderComments(data.comments);
+        App.showToast("Comment added to the report.");
+      } catch (error) {
+        App.showToast(error.message, "error", "Comment failed");
+      }
+    });
+
+    window.require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs" } });
+    window.require(["vs/editor/editor.main"], () => {
+      editor = monaco.editor.create(document.getElementById("monaco-editor"), {
+        value: document.getElementById("editor-fallback").value,
+        language: "javascript",
+        theme: "vs-dark",
+        automaticLayout: true,
+        minimap: { enabled: false },
+        roundedSelection: true,
+        fontSize: 14,
+        padding: { top: 16 }
+      });
+
+      document.getElementById("code-language").addEventListener("change", (event) => {
+        monaco.editor.setModelLanguage(editor.getModel(), event.target.value === "cpp" ? "cpp" : event.target.value);
+      });
+    }, () => {
+      document.getElementById("monaco-editor").style.display = "none";
+      document.getElementById("editor-fallback").style.display = "block";
+    });
+
+    loadWorkspaceIntel();
+    loadNotifications();
+    loadAnalyticsIntel();
+    loadDevopsTemplates();
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+[
+  {"name":"python-runtime-security","file":"sample.py","language":"python","source":"def run(value):\n    return eval(value) / 0","rules":["BUGAI-SEC-001","BUGAI-RUN-001"]},
+  {"name":"javascript-xss-command","file":"app.js","language":"javascript","source":"element.innerHTML = input; child_process.exec(command);","rules":["BUGAI-SEC-004","BUGAI-SEC-002"]},
+  {"name":"typescript-secret","file":"app.ts","language":"typescript","source":"const apiKey = 'abcdefghi';","rules":["BUGAI-SEC-005"]},
+  {"name":"java-sql","file":"App.java","language":"java","source":"String sql = \"SELECT * FROM users \" + id;","rules":["BUGAI-SEC-003"]},
+  {"name":"c-command","file":"main.c","language":"c","source":"int main() { system(command); }","rules":["BUGAI-SEC-002"]},
+  {"name":"cpp-command","file":"main.cpp","language":"cpp","source":"int main() { system(command); }","rules":["BUGAI-SEC-002"]},
+  {"name":"csharp-command","file":"Program.cs","language":"csharp","source":"System.Diagnostics.Process.Start(command);","rules":[]},
+  {"name":"go-loop","file":"main.go","language":"go","source":"func main() { for {} }","rules":[]},
+  {"name":"rust-quality","file":"main.rs","language":"rust","source":"fn main() { let value = 1000; }","rules":["BUGAI-QUAL-002"]},
+  {"name":"kotlin-sql","file":"Main.kt","language":"kotlin","source":"val sql = \"SELECT * FROM users \" + id","rules":["BUGAI-SEC-003"]},
+  {"name":"swift-quality","file":"main.swift","language":"swift","source":"let limit = 1000","rules":["BUGAI-QUAL-002"]},
+  {"name":"php-sql","file":"app.php","language":"php","source":"$sql = 'SELECT * FROM users ' + $id;","rules":["BUGAI-SEC-003"]},
+  {"name":"ruby-dynamic-code","file":"app.rb","language":"ruby","source":"eval(input)","rules":["BUGAI-SEC-001"]},
+  {"name":"sql-injection","file":"query.sql","language":"sql","source":"SELECT * FROM users WHERE id=+ userId","rules":["BUGAI-SEC-003"]},
+  {"name":"bash-command","file":"run.sh","language":"bash","source":"system(command)","rules":["BUGAI-SEC-002"]},
+  {"name":"html-xss","file":"page.html","language":"html","source":"element.innerHTML = input;","rules":["BUGAI-SEC-004"]},
+  {"name":"css-quality","file":"site.css","language":"css","source":".box { --layout-limit: 1000; }","rules":["BUGAI-QUAL-002"]},
+  {"name":"dart-security","file":"main.dart","language":"dart","source":"eval(input);","rules":["BUGAI-SEC-001"]},
+  {"name":"r-security","file":"analysis.r","language":"r","source":"eval(input)","rules":["BUGAI-SEC-001"]}
+]

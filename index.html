@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BUG AI | Analyze Code with Evidence</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand-lockup">
+        <div class="brand-mark">BZ</div>
+        <div>
+          <div>BUG AI</div>
+          <span class="brand-subtitle">Predictive engineering</span>
+        </div>
+      </a>
+      <nav class="nav-links">
+        <a href="#home" class="active">Home</a>
+        <a href="#features">Features</a>
+        <a href="#demo">Demo</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="theme-toggle" data-theme-toggle type="button">Theme</button>
+        <a class="btn btn-secondary" href="login.html">Login</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="home">
+    <section class="hero">
+      <div class="site-shell hero-grid">
+        <div class="hero-copy">
+          <span class="eyebrow reveal">AI bug prevention platform</span>
+          <div class="reveal">
+            <h1>Predict Bugs Before They Break Your Code</h1>
+          </div>
+          <p class="lead reveal">
+            BUG AI scans source code, uploaded projects, and GitHub repositories to surface evidence-backed findings,
+            vulnerable lines, severity labels, and plain-English fix recommendations before defects hit production.
+          </p>
+          <div class="hero-actions reveal">
+            <a class="btn btn-primary" href="#demo">Try Live Demo</a>
+            <a class="btn btn-secondary" href="signup.html">Upload Project</a>
+            <a class="btn btn-ghost" href="dashboard.html">Connect GitHub</a>
+          </div>
+          <div class="hero-stats reveal">
+            <div class="stat-chip glass">
+              <strong>Evidence-led</strong>
+              <span>deterministic findings</span>
+            </div>
+            <div class="stat-chip glass">
+              <strong>18</strong>
+              <span>languages supported</span>
+            </div>
+            <div class="stat-chip glass">
+              <strong>Static-first</strong>
+              <span>no user code execution</span>
+            </div>
+          </div>
+        </div>
+        <div class="dashboard-preview glass reveal">
+          <div class="preview-shell">
+            <div class="preview-row">
+              <div class="preview-card">
+                Risk score
+                <strong>72%</strong>
+                <p>High regression potential</p>
+              </div>
+              <div class="preview-card">
+                Bugs found
+                <strong>09</strong>
+                <p>Across runtime and security</p>
+              </div>
+              <div class="preview-card">
+                Quality score
+                <strong>61</strong>
+                <p>Needs architecture cleanup</p>
+              </div>
+            </div>
+            <div class="preview-card preview-chart">
+              <div class="badge-row">
+                <span class="badge critical">Critical 2</span>
+                <span class="badge high">High 3</span>
+                <span class="badge medium">Medium 2</span>
+                <span class="badge low">Low 2</span>
+              </div>
+              <div class="signal-line"><span style="width: 78%"></span></div>
+              <div class="signal-line"><span style="width: 54%"></span></div>
+              <div class="signal-line"><span style="width: 82%"></span></div>
+              <div class="signal-line"><span style="width: 36%"></span></div>
+            </div>
+            <div class="preview-card">
+              <p>AI explanation</p>
+              <strong style="font-size:1.2rem;">Potential infinite loop in worker queue</strong>
+              <p>The loop condition never mutates, so large uploads can stall background scanning and exhaust workers.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="site-shell">
+        <div class="section-head reveal">
+          <span class="eyebrow">Core features</span>
+          <h2>Built like a real engineering intelligence platform</h2>
+          <p>Every part of the product is designed around developer trust: fast scans, transparent reasoning, and actionable guidance.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card glass reveal">
+            <div class="feature-icon">01</div>
+            <h3>AI Bug Detection</h3>
+            <p>Detect null pointer risks, infinite loops, logic flaws, syntax problems, and vulnerable control flow.</p>
+          </article>
+          <article class="feature-card glass reveal">
+            <div class="feature-icon">02</div>
+            <h3>Risk Score Analysis</h3>
+            <p>Understand overall failure probability with severity-weighted scoring and code quality confidence.</p>
+          </article>
+          <article class="feature-card glass reveal">
+            <div class="feature-icon">03</div>
+            <h3>GitHub Repo Scan</h3>
+            <p>Connect public repositories and turn distributed code into a single prioritized defect report.</p>
+          </article>
+          <article class="feature-card glass reveal">
+            <div class="feature-icon">04</div>
+            <h3>Multi-language Support</h3>
+            <p>Analyze JavaScript, TypeScript, Python, Java, C, C++, and mixed-language project bundles.</p>
+          </article>
+          <article class="feature-card glass reveal">
+            <div class="feature-icon">05</div>
+            <h3>Download PDF Reports</h3>
+            <p>Export polished reports for engineering reviews, client communication, or release sign-off.</p>
+          </article>
+          <article class="feature-card glass reveal">
+            <div class="feature-icon">06</div>
+            <h3>Code Quality Suggestions</h3>
+            <p>See simple AI explanations, fix recommendations, vulnerable lines, and structured remediation steps.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="site-shell">
+        <div class="section-head reveal">
+          <span class="eyebrow">Trusted signal</span>
+          <h2>Built for students, startups, and shipping engineering teams</h2>
+          <p>Position the project like a premium AI SaaS product with reliability, security, and developer trust baked into the story.</p>
+        </div>
+        <div class="results-grid">
+          <article class="metric-card glass reveal">
+            <span class="eyebrow">Uptime</span>
+            <strong>99.9%</strong>
+            <p>Stable scan availability and persistent saved history.</p>
+          </article>
+          <article class="metric-card glass reveal">
+            <span class="eyebrow">Secure scanning</span>
+            <strong>JWT + Headers</strong>
+            <p>Protected auth, sanitized inputs, and rate-limited APIs.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="site-shell">
+        <div class="section-head reveal">
+          <span class="eyebrow">How it works</span>
+          <h2>From raw source to clear engineering action</h2>
+        </div>
+        <div class="step-grid">
+          <div class="step-card reveal">
+            <span class="step-number">1</span>
+            <h3 style="margin-top:14px;">Upload code</h3>
+            <p>Paste a snippet, drop a project archive, or connect a public GitHub repository.</p>
+          </div>
+          <div class="step-card reveal">
+            <span class="step-number">2</span>
+            <h3 style="margin-top:14px;">AI scans code</h3>
+            <p>BugZero AI combines structured heuristics and model-powered reasoning for stronger signal.</p>
+          </div>
+          <div class="step-card reveal">
+            <span class="step-number">3</span>
+            <h3 style="margin-top:14px;">Detect bugs</h3>
+            <p>Severity-labeled findings are grouped by runtime, logic, memory, and security impact.</p>
+          </div>
+          <div class="step-card reveal">
+            <span class="step-number">4</span>
+            <h3 style="margin-top:14px;">Get report instantly</h3>
+            <p>Teams can download, compare, share, and archive results for later release decisions.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="demo">
+      <div class="demo-shell">
+        <div class="section-head reveal">
+          <span class="eyebrow">Live demo</span>
+          <h2>Interactive sample bug scan</h2>
+        </div>
+        <div class="demo-card glass reveal">
+          <div class="code-preview">
+            <pre id="demo-code">def process(items)
+    while True:
+        result = 10 / 0
+        print("token", secret_token)
+        return result
+        print("never reached")</pre>
+          </div>
+          <div class="mini-report">
+            <div class="mini-risk">Sample report</div>
+            <p>Run the live analyzer to see how BugZero AI scores defects and explains why they matter.</p>
+            <button class="btn btn-primary" id="demo-scan-btn" type="button">Run Demo Scan</button>
+            <div id="demo-output" class="panel">
+              <p>Scan results will appear here.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="site-shell">
+        <div class="section-head reveal">
+          <span class="eyebrow">Testimonials</span>
+          <h2>Teams use BugZero AI to ship with less uncertainty</h2>
+        </div>
+        <div class="testimonial-grid">
+          <article class="testimonial-card glass reveal">
+            <p>“BugZero AI gives our QA and platform teams the same language. The explanations are clear enough that engineers act on them immediately.”</p>
+            <strong>Ritika Sharma</strong>
+            <p>VP Engineering, OrbitStack</p>
+          </article>
+          <article class="testimonial-card glass reveal">
+            <p>“We used to review large repositories manually before demos. Now we scan, compare against the last build, and move faster with more confidence.”</p>
+            <strong>Harsh Malhotra</strong>
+            <p>Founding CTO, MergeSprint</p>
+          </article>
+          <article class="testimonial-card glass reveal">
+            <p>“The combination of risk score, severity breakdown, and shareable reports makes this feel like a serious internal platform, not a toy analyzer.”</p>
+            <strong>Aarya Patel</strong>
+            <p>Lead Architect, DevPulse Cloud</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="pricing">
+      <div class="site-shell">
+        <div class="section-head reveal">
+          <span class="eyebrow">Pricing</span>
+          <h2>Plans for solo builders and engineering teams</h2>
+        </div>
+        <div class="pricing-grid">
+          <article class="pricing-card glass reveal">
+            <h3>Free</h3>
+            <div class="price">₹0</div>
+            <p>Perfect for trying the core scanner.</p>
+            <ul>
+              <li>20 scans per month</li>
+              <li>Code paste analysis</li>
+              <li>Severity breakdown</li>
+            </ul>
+          </article>
+          <article class="pricing-card glass featured reveal">
+            <h3>Pro</h3>
+            <div class="price">₹2,499</div>
+            <p>For active developers shipping multiple codebases.</p>
+            <ul>
+              <li>Unlimited code scans</li>
+              <li>GitHub repository analysis</li>
+              <li>PDF exports and share links</li>
+              <li>Compare previous scans</li>
+            </ul>
+          </article>
+          <article class="pricing-card glass reveal">
+            <h3>Team</h3>
+            <div class="price">₹8,999</div>
+            <p>Collaboration, analytics, and admin visibility for growing engineering orgs.</p>
+            <ul>
+              <li>Everything in Pro</li>
+              <li>Team history and usage insights</li>
+              <li>Admin analytics dashboard</li>
+              <li>Priority support</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="site-shell">
+        <div class="section-head reveal">
+          <span class="eyebrow">DevOps and AI</span>
+          <h2>From local code paste to CI-connected repository intelligence</h2>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card glass reveal">
+            <div class="feature-icon">CI</div>
+            <h3>GitHub Actions</h3>
+            <p>Run scans on push and pull request events with ready-to-copy workflow templates.</p>
+          </article>
+          <article class="feature-card glass reveal">
+            <div class="feature-icon">GL</div>
+            <h3>GitLab CI</h3>
+            <p>Trigger repository analysis in pipeline stages for student demos and team reviews.</p>
+          </article>
+          <article class="feature-card glass reveal">
+            <div class="feature-icon">JK</div>
+            <h3>Jenkins</h3>
+            <p>Support legacy enterprise automation while preserving the same reporting flow.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="site-shell">
+        <div class="section-head reveal">
+          <span class="eyebrow">Project showcase</span>
+          <h2>Presentation-ready ML and system architecture story</h2>
+          <p>Use these sections for college demos, vivas, and product presentations.</p>
+        </div>
+        <div class="step-grid">
+          <div class="step-card reveal">
+            <span class="step-number">A</span>
+            <h3 style="margin-top:14px;">Architecture diagram</h3>
+            <p>Frontend dashboard, API gateway, scanner engine, analytics store, and report layer.</p>
+          </div>
+          <div class="step-card reveal">
+            <span class="step-number">B</span>
+            <h3 style="margin-top:14px;">Evaluation status</h3>
+            <p>Precision, recall, and F1 are reported only when a maintained benchmark is configured.</p>
+          </div>
+          <div class="step-card reveal">
+            <span class="step-number">C</span>
+            <h3 style="margin-top:14px;">Confidence and severity</h3>
+            <p>Findings distinguish deterministic evidence from unverified AI suggestions.</p>
+          </div>
+          <div class="step-card reveal">
+            <span class="step-number">D</span>
+            <h3 style="margin-top:14px;">Dataset workflow</h3>
+            <p>Walk through input normalization, heuristics, AI reasoning, and fix generation.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer" id="contact">
+    <div class="footer-inner">
+      <div>
+        <strong>BugZero AI</strong>
+        <p>AI-powered predictive quality platform for code teams.</p>
+      </div>
+      <div>
+        <strong>Contact</strong>
+        <p>hello@bugzero.ai</p>
+        <p>For student showcases, startup demos, and engineering teams.</p>
+      </div>
+      <div>
+        <a href="dashboard.html">Product</a> ·
+        <a href="history.html">Docs</a> ·
+        <a href="mailto:hello@bugzero.ai">hello@bugzero.ai</a>
+      </div>
+      <div>
+        <a href="https://github.com" target="_blank" rel="noreferrer">GitHub</a> ·
+        <a href="https://linkedin.com" target="_blank" rel="noreferrer">LinkedIn</a> ·
+        <a href="https://x.com" target="_blank" rel="noreferrer">X</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="ui.js"></script>
+  <script>
+    document.getElementById("demo-scan-btn").addEventListener("click", async () => {
+      const output = document.getElementById("demo-output");
+      output.innerHTML = App.createLoadingMarkup("Evaluating sample code");
+      try {
+        const result = await fetch("/predict-bugs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: document.getElementById("demo-code").innerText })
+        }).then((res) => res.json());
+
+        output.innerHTML = `
+          <div class="badge-row">
+            <span class="badge high">${result.risk_level}</span>
+            <span class="badge medium">Risk ${result.risk_score}%</span>
+          </div>
+          <p style="margin-top:12px;"><strong>${result.error_count}</strong> likely issues across <strong>${result.total_lines}</strong> lines.</p>
+          <ul class="check-list" style="margin-top:14px;">
+            ${(result.errors || []).slice(0, 4).map((bug) => `<li>Line ${bug.line}: ${bug.message}</li>`).join("")}
+          </ul>
+        `;
+      } catch (error) {
+        output.innerHTML = `<p>${error.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>

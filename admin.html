@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin | BugZero AI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="app-page">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="index.html" class="brand-lockup">
+        <div class="brand-mark">BZ</div>
+        <div>
+          <div>BugZero AI</div>
+          <span class="brand-subtitle">Admin intelligence</span>
+        </div>
+      </a>
+      <nav class="nav-links">
+        <a href="dashboard.html">Workspace</a>
+        <a href="history.html">History</a>
+        <a href="admin.html" class="active">Admin</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="theme-toggle" data-theme-toggle type="button">Theme</button>
+        <a class="btn btn-secondary" href="#" data-logout>Logout</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="admin-shell">
+    <section class="section" style="padding-top:36px;">
+      <div class="section-head reveal">
+        <span class="eyebrow">Admin dashboard</span>
+        <h2>Users, scans, revenue signals, and recurring bug patterns</h2>
+        <p>The admin panel reads platform analytics from the backend and highlights adoption plus quality risk trends.</p>
+      </div>
+      <div id="admin-root" class="admin-grid"></div>
+    </section>
+  </main>
+
+  <script src="ui.js"></script>
+  <script>
+    App.requireAuth();
+
+    (async function init() {
+      const root = document.getElementById("admin-root");
+      root.innerHTML = App.createLoadingMarkup("Loading admin metrics");
+      try {
+        const data = await App.api("/admin/overview");
+        root.innerHTML = `
+          <article class="admin-card panel reveal">
+            <span class="eyebrow">Users</span>
+            <strong>${data.totalUsers}</strong>
+            <p>Total registered accounts</p>
+          </article>
+          <article class="admin-card panel reveal">
+            <span class="eyebrow">Scans</span>
+            <strong>${data.totalScans}</strong>
+            <p>Total scans across code, project, and GitHub flows</p>
+          </article>
+          <article class="admin-card panel reveal">
+            <span class="eyebrow">Revenue</span>
+            <strong>₹${data.revenueEstimate.toLocaleString("en-IN")}</strong>
+            <p>Simple projected revenue snapshot</p>
+          </article>
+          <article class="admin-card panel reveal">
+            <span class="eyebrow">Active today</span>
+            <strong>${data.activeToday}</strong>
+            <p>Scans created on the current day</p>
+          </article>
+          <article class="admin-card panel reveal">
+            <span class="eyebrow">Active users</span>
+            <strong>${data.activeUsers}</strong>
+            <p>Users with at least one saved scan</p>
+          </article>
+          <article class="admin-card panel reveal">
+            <span class="eyebrow">Scan mix</span>
+            <strong>${data.analytics.scansByType.github || 0}</strong>
+            <p>GitHub repo scans completed</p>
+          </article>
+          <article class="admin-card panel reveal">
+            <span class="eyebrow">Avg risk</span>
+            <strong>${data.avgRiskScore}%</strong>
+            <p>Platform-wide mean risk score</p>
+          </article>
+          <article class="admin-card panel reveal">
+            <span class="eyebrow">Avg quality</span>
+            <strong>${data.avgQualityScore}</strong>
+            <p>Platform-wide code quality signal</p>
+          </article>
+          <article class="admin-card panel reveal">
+            <span class="eyebrow">Common bugs</span>
+            <ul class="check-list" style="margin-top:14px;">
+              ${data.topBugs.length ? data.topBugs.map((bug) => `<li>${bug.name} (${bug.count})</li>`).join("") : "<li>No bug data yet.</li>"}
+            </ul>
+          </article>
+          <article class="admin-card panel reveal">
+            <span class="eyebrow">Export usage</span>
+            <ul class="check-list" style="margin-top:14px;">
+              <li>PDF exports: ${data.analytics.exports.pdf || 0}</li>
+              <li>CSV exports: ${data.analytics.exports.csv || 0}</li>
+              <li>JSON exports: ${data.analytics.exports.json || 0}</li>
+              <li>Excel exports: ${data.analytics.exports.excel || 0}</li>
+            </ul>
+          </article>
+        `;
+      } catch (error) {
+        root.innerHTML = `<div class="empty-state"><p>${error.message}</p><p>Create an admin account by registering with username <strong>admin</strong>.</p></div>`;
+      }
+    })();
+  </script>
+</body>
+</html>
