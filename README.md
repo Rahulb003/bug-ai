@@ -19,8 +19,8 @@ Open `http://127.0.0.1:8080`, then sign in and open `Code Studio`. Run the autom
 - `studio.html` — three-pane Code Studio: project/file explorer, editor, and evidence-backed finding panel.
 - `projects.html` — create, open, save, analyze, and delete persisted projects.
 - `analyzer.html`, `security.html`, `review.html` — focused finding views.
-- `optimizer.html` — original/proposed output and change explanation; it never applies an unverified change automatically. **Not yet functional: the proposed output is currently identical to the input** (see Current limitations).
-- `tests.html` — generated test plans and available verification results. **Not yet functional: plans are test names and intents only, with no runnable bodies** (see Current limitations).
+- `optimizer.html` — original/proposed output and change explanation; it never applies an unverified change automatically.
+- `tests.html` — generated test code and available verification results; generated tests are never written into your project.
 - `architecture.html`, `dependencies.html` — static project structure and import/manifest metadata.
 - `assistant.html`, `git.html`, `analytics.html`, `settings.html` — connected assistant, CI template, stored analytics, and local-workspace settings views.
 
@@ -28,13 +28,17 @@ Current project, selected file, and latest scan persist in browser local storage
 
 ## Current limitations
 
-Three advertised actions are **not implemented yet**. They return safe, non-fabricated placeholders rather than real results, and the UI must not be read as if they worked:
+Fix, Optimize, and test generation are implemented and produce real output, but every result is an **AI proposal that has never been executed**. Nothing is written to your files or applied automatically.
 
-- **Fix (`POST /api/fix`, the Studio Fix button)** — always returns an **empty fix list**. No rule in `analyzers/deterministicAnalyzers.js` is marked `fixable: true`, so there is nothing for the controller to propose. Clicking Fix currently does nothing.
-- **Optimize (`POST /api/optimize`, `optimizer.html`)** — returns the submitted source **unchanged** as `optimizedCode`. It lists finding-derived explanations but performs no transformation, and runs with AI reasoning disabled.
-- **Test generation (`POST /api/test/generate`, `tests.html`)** — produces **test names and intents only**. There is no test body and no assertions; the output is metadata, not runnable code.
+- **Fix (`POST /api/fix`)** — returns real patches. Each carries `source: "deterministic"` (a mechanical rule fix) or `source: "ai"`, and `aiStatus` reports whether the AI step ran. Only `BUGAI-PY-001` has a mechanical fix; everything else is AI-derived.
+- **Optimize (`POST /api/optimize`)** — returns transformed code plus `optimizedVerification`, a fresh static check of the proposed code. If nothing can be safely improved for the mode, `optimizedCode` equals the input and `changes` is empty — an honest result, not a failure.
+- **Test generation (`POST /api/test/generate`)** — returns runnable test bodies with assertions. Status is `generated` (real code), `plan_only` (no API key or the AI call failed — names and intents only, never fabricated code), or `not_available` (the language has no configured test runner; no AI call is made). Generated tests are never written into your project. The cheap stub embedded in `/api/scan` responses stays name/intent only and makes no AI call.
 
-Additionally, no sandboxed execution exists, so compilation, test-run, and regression verification report `not_available` by design (see Verification and security limits). Gemini AI reasoning is wired into the initial `/api/scan` step only; Fix, Optimize, and Test generation make no AI call today.
+These three endpoints each make at most one Gemini call per request. They share the 120 requests/minute rate limiter with every other endpoint. Transient `503 high demand` responses from the model are common; they degrade to `aiStatus: "unavailable"` (or `plan_only`) rather than failing or inventing a result.
+
+No sandboxed execution exists, so compilation, test-run, and regression verification report `not_available` by design (see Verification and security limits) — including for AI-generated tests, which are written but never run.
+
+**Known gap:** `ai/aiAnalyzer.js` still targets the retired `gemini-2.0-flash` model, so the optional AI reasoning step of `/api/scan` fails and silently contributes no findings. The newer modules use `GEMINI_MODEL` (default `gemini-3.6-flash`).
 
 ## Architecture
 
@@ -43,7 +47,7 @@ Additionally, no sandboxed execution exists, so compilation, test-run, and regre
 - `languageRegistry.js` and `languageDetector.js` identify languages and tool capabilities.
 - `projectAnalyzer.js`, `dependencyAnalyzer.js`, and `architectureAnalyzer.js` preserve project file boundaries, detect manifests/tests/import relationships, and ignore dependency/generated directories.
 - `analyzers/` produces evidence-backed deterministic findings.
-- `ai/aiAnalyzer.js` supplies optional, structured potential findings without treating source comments as instructions.
+- `ai/` supplies optional, structured AI output without treating source content as instructions: `aiAnalyzer.js` (potential findings), `aiFixer.js` (patch proposals), `aiOptimizer.js` (optimizations), and `aiTestGenerator.js` (test code). Each degrades to a labelled "not available" result when no key is configured, the API fails, or the response is malformed.
 - `verification/` reports only checks that actually run. User code is never executed in the Node API process.
 
 The former `scannerEngine.js` remains for legacy compatibility; active scan services use the modular engine. Projects are stored compatibly beside existing `db.json` records under a `projects` collection.

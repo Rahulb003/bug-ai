@@ -7,6 +7,8 @@ import { analyzeWithEngine } from "../services/engine/analysisPipeline.js";
 import { proposeFixes } from "../services/engine/ai/aiFixer.js";
 import { proposeOptimization } from "../services/engine/ai/aiOptimizer.js";
 import { verifyStatic } from "../services/engine/verification/verificationEngine.js";
+import { generateTestCode } from "../services/engine/ai/aiTestGenerator.js";
+import { getLanguage } from "../services/engine/languageRegistry.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { createAppError } from "../utils/errors.js";
 import { findScanById } from "../models/scanModel.js";
@@ -98,7 +100,15 @@ export const optimizeController = asyncHandler(async (req, res) => {
 
 export const generateTestsController = asyncHandler(async (req, res) => {
   const result = await transientAnalysis(req.body, { includeAi: false });
-  res.json(result.generatedTests);
+  const languageInfo = getLanguage(result.language);
+  const generated = await generateTestCode({
+    source: req.body.code || req.body.source,
+    language: result.language,
+    sourceName: req.body.filename || "Live snippet",
+    findings: result.findings,
+    testRunner: languageInfo?.testRunner
+  });
+  res.json(generated);
 });
 
 export const verifyController = asyncHandler(async (req, res) => {
