@@ -7,6 +7,7 @@ import { analyzeWithEngine } from "../services/engine/analysisPipeline.js";
 import { proposeFixes } from "../services/engine/ai/aiFixer.js";
 import { proposeOptimization } from "../services/engine/ai/aiOptimizer.js";
 import { verifyStatic } from "../services/engine/verification/verificationEngine.js";
+import { runInSandbox } from "../services/engine/verification/sandboxExecutor.js";
 import { generateTestCode } from "../services/engine/ai/aiTestGenerator.js";
 import { getLanguage } from "../services/engine/languageRegistry.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -113,7 +114,10 @@ export const generateTestsController = asyncHandler(async (req, res) => {
 
 export const verifyController = asyncHandler(async (req, res) => {
   const result = await transientAnalysis(req.body, { includeAi: false });
-  res.json({ status: result.verification.status, verification: result.verification, findings: result.findings });
+  // Sandboxed execution is scoped to this single-snippet path only: never the
+  // project or GitHub paths, which accept code from public repositories.
+  const executionVerification = await runInSandbox({ code: req.body.code || req.body.source, language: result.language });
+  res.json({ status: result.verification.status, verification: result.verification, executionVerification, findings: result.findings });
 });
 
 export const fixController = asyncHandler(async (req, res) => {

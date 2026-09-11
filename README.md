@@ -27,21 +27,37 @@ Open `http://127.0.0.1:8080`, then sign in and open `Code Studio`. Run the autom
 
 Current project, selected file, and latest scan persist in browser local storage while the project data itself persists in the server database.
 
-## Current limitations
+## What is real, and what it falls back to
 
-Fix, Optimize, and test generation are implemented and produce real output, but every result is an **AI proposal that has never been executed**. Nothing is written to your files or applied automatically.
+Every AI-backed action is a **proposal that has never been executed**. Nothing is written to your files or applied automatically, and each response says which path produced it.
 
-- **Fix (`POST /api/fix`)** — returns real patches. Each carries `source: "deterministic"` (a mechanical rule fix) or `source: "ai"`, and `aiStatus` reports whether the AI step ran. Only `BUGAI-PY-001` has a mechanical fix; everything else is AI-derived.
-- **Optimize (`POST /api/optimize`)** — returns transformed code plus `optimizedVerification`, a fresh static check of the proposed code. If nothing can be safely improved for the mode, `optimizedCode` equals the input and `changes` is empty — an honest result, not a failure.
-- **Test generation (`POST /api/test/generate`)** — returns runnable test bodies with assertions. Status is `generated` (real code), `plan_only` (no API key or the AI call failed — names and intents only, never fabricated code), or `not_available` (the language has no configured test runner; no AI call is made). Generated tests are never written into your project. The cheap stub embedded in `/api/scan` responses stays name/intent only and makes no AI call.
+| Action | With `GEMINI_API_KEY` | Without a key, or when the API fails |
+| --- | --- | --- |
+| Fix (`POST /api/fix`) | Real patches per finding, each tagged `source: "ai"` | Mechanical rule fixes only, tagged `source: "deterministic"`; `aiStatus` reports `not_configured` or `unavailable`. Only `BUGAI-PY-001` has a mechanical fix today |
+| Optimize (`POST /api/optimize`) | Transformed code plus `optimizedVerification`, a fresh static check of the proposal | `optimizedCode` equals the input, `changes` is empty, and the note says no transformation was produced |
+| Generate tests (`POST /api/test/generate`) | `generated`: runnable test bodies with assertions | `plan_only`: names and intents only, never fabricated code. `not_available` when the language has no configured test runner, and no AI call is made |
+| Assistant (`POST /api/assistant/chat`) | `source: "ai"`: answers from a project index plus up to three name-matched files, listing the files it referenced | `source: "rule-based"`: scan-grounded keyword answers, the pre-AI behaviour |
 
-These three endpoints each make at most one Gemini call per request. They share the 120 requests/minute rate limiter with every other endpoint. Transient `503 high demand` responses from the model are common; they degrade to `aiStatus: "unavailable"` (or `plan_only`) rather than failing or inventing a result.
+The AI reasoning step of `/api/scan` is separate and optional; deterministic findings are always produced regardless.
 
-No sandboxed execution exists, so compilation, test-run, and regression verification report `not_available` by design (see Verification and security limits) — including for AI-generated tests, which are written but never run.
+Each of these endpoints makes at most one Gemini call per request and shares the 120 requests/minute rate limiter with everything else. The assistant is a chat interface and will consume quota fastest. Transient `429` and `503` responses degrade to the fallback column above rather than failing or inventing a result.
 
-The assistant (`POST /api/assistant/chat`) makes at most one Gemini call per question and only when a `projectId` is supplied and a key is configured. It never sends the whole project: the prompt carries file names, languages, manifests and architecture layers, plus the contents of at most three files whose names match the question. Because chat is asked far more often than Fix or Optimize, this endpoint is the most likely to exhaust a free-tier quota; on `429`/`503` it degrades to the rule-based reply rather than failing.
+## Analysis coverage
 
-**Known gap:** `ai/aiAnalyzer.js` still targets the retired `gemini-2.0-flash` model, so the optional AI reasoning step of `/api/scan` fails and silently contributes no findings. The newer modules use `GEMINI_MODEL` (default `gemini-3.6-flash`).
+Coverage is **not** uniform across languages, and the difference is deliberate:
+
+- **JavaScript and TypeScript** use a real `@babel/parser` AST (`analyzers/ast/jsAstAnalyzer.js`). Rules match node shapes rather than source text, so `pattern.exec()` and a class method named `system()` are no longer reported as code execution or command injection, SQL keywords inside comments no longer match, and `BUGAI-RUN-004` (assignment used as a condition) is detected — none of which text matching can do. If parsing fails, the file falls back to the syntax analyzer rather than losing findings.
+- **Every other language** — Python, Java, C, C++, C#, Go, Rust, Kotlin, Swift, PHP, Ruby, and the pattern-only set — still uses the regex analyzers, with the accuracy limits that implies.
+
+## Sandboxed execution (experimental, off by default)
+
+`EXECUTION_SANDBOX_ENABLED=false` is the default and the shipped state. While it is off, `executionVerification` reports `not_available` and no submitted code is ever run.
+
+When explicitly enabled, `POST /api/verify` runs a **single JavaScript snippet** in a separate child process under Node's Permission Model: filesystem writes denied, reads limited to the script itself, child processes and worker threads denied, a scrubbed environment so `GEMINI_API_KEY` and `JWT_SECRET` are not visible to submitted code, a hard timeout, and capped output.
+
+This is **process-level isolation, not container or OS-level sandboxing**, and it does **not restrict network access**. It is deliberately wired only to the single-snippet verify path, for code the authenticated user pasted themselves — never to `/api/scan-github` or project analysis, which accept code from public repositories. An automated test enforces that import boundary.
+
+See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for what remains out of scope.
 
 ## Architecture
 
@@ -58,7 +74,7 @@ The former `scannerEngine.js` remains for legacy compatibility; active scan serv
 
 ## Language coverage
 
-Full static-rule coverage: Python, JavaScript, TypeScript, Java, C, C++, C#, Go, Rust, Kotlin, Swift, PHP, and Ruby. Pattern-analysis coverage: SQL, Bash, HTML, CSS, Dart, and R. Detection is automatic for `language: "auto"`; unsupported inputs report `unknown` rather than a false support claim.
+AST-based rules: JavaScript and TypeScript only. Regex static-rule coverage: Python, Java, C, C++, C#, Go, Rust, Kotlin, Swift, PHP, and Ruby. Pattern-analysis coverage: SQL, Bash, HTML, CSS, Dart, and R. "Full coverage" here means the rule set runs, not that accuracy is equal across languages — see [Analysis coverage](#analysis-coverage). Detection is automatic for `language: "auto"`; unsupported inputs report `unknown` rather than a false support claim.
 
 ## API
 
@@ -66,7 +82,9 @@ Authenticated endpoints include `POST /api/scan`, `/api/analyze`, `/api/project/
 
 ## Verification and security limits
 
-This installation deliberately does not execute submitted code. Compilation, type checking, and tests report `not_available` or `not_run` until an isolated sandbox with CPU, memory, filesystem, network, process, and output limits is configured. A completed static security scan is not an execution verification. Generated test plans are never written over user tests.
+By default this installation does not execute submitted code. Compilation, type checking, and tests report `not_available` or `not_run`, and the static `verification` block always reports only checks that actually ran. A completed static security scan is not an execution verification. Generated tests are never written over user tests.
+
+The one exception is opt-in: with `EXECUTION_SANDBOX_ENABLED=true`, `/api/verify` executes a single JavaScript snippet in a child process and reports the result in a **separate** `executionVerification` field. The static `verification` block is unchanged by it and still says tests were not run. See [Sandboxed execution](#sandboxed-execution-experimental-off-by-default) for the isolation that does and does not provide.
 
 GitHub analysis accepts only public `https://github.com/owner/repository` URLs, uses timeouts, ignores dependency/generated paths, and caps loaded files. Source content is preserved exactly; API metadata is sanitised without mutating code.
 
