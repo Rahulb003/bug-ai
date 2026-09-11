@@ -16,6 +16,7 @@ const BugWorkspace = (() => {
   const esc = (value) => App.escapeHtml(value);
   function renderShell() {
     const root = document.getElementById("workspace-shell"); if (!root) return;
+    root.classList.add("ws-shell"); // workspace.css defines the sidebar/main grid on this class.
     root.innerHTML = `<aside class="ws-sidebar"><a class="ws-brand" href="dashboard.html"><i>◈</i> BUG AI</a><nav class="ws-nav">${links.map(([title, group]) => `<div class="ws-nav-title">${title}</div>${group.map(([href,label]) => `<a class="${href === pageFile ? "active" : ""}" href="${href}">${label}</a>`).join("")}`).join("")}</nav></aside><main class="ws-main"><header class="ws-topbar"><div><h1>${document.title.replace(" | BUG AI", "")}</h1><div class="ws-context" id="ws-context">No project selected</div></div><div class="ws-toolbar"><button class="ws-button" data-theme-toggle>Theme</button><a class="ws-button" href="dashboard.html">Workspace</a></div></header><section class="ws-content" id="workspace-content"></section></main>`;
     renderContext();
   }
