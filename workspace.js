@@ -271,10 +271,32 @@ const BugWorkspace = (() => {
     return `<article class="finding ${String(item.severity || "info").toLowerCase()}"><div><span class="ws-badge ${String(item.severity || "info").toLowerCase()}">${esc(item.severity)}</span> <span class="ws-badge">${esc(item.source || "deterministic")}</span></div><strong>${esc(item.title)}</strong><p>${esc(item.description || item.explanation || "")}</p><p class="ws-muted">${esc(item.file || "snippet")}:${item.line || "?"} · confidence ${Math.round(Number(item.confidence || 0) * (Number(item.confidence || 0) <= 1 ? 100 : 1))}%</p><p><b>Evidence:</b> ${esc(Array.isArray(item.evidence) ? item.evidence.join(" ") : item.whyItHappens || "Unavailable")}</p><p><b>Recommendation:</b> ${esc(item.recommendation || item.fix || "Review the code.")}</p></article>`;
   }
 
+  // One connected environment: any page can hand a file+line to the editor.
+  function openInStudio({ file, line, column, findingId, panel } = {}) {
+    const params = new URLSearchParams();
+    if (file) params.set("file", file);
+    if (line) params.set("line", String(line));
+    if (column) params.set("column", String(column));
+    if (findingId) params.set("finding", findingId);
+    if (panel) params.set("panel", panel);
+    if (file) localStorage.setItem("bugai_current_file", file);
+    location.href = `studio.html${params.toString() ? `?${params}` : ""}`;
+  }
+
+  // Never render a discovered credential in full.
+  function maskSecret(text) {
+    return String(text == null ? "" : text).replace(/([A-Za-z0-9_\-]{8,})/g, (m) => (m.length < 12 ? m : `${m.slice(0, 4)}${"•".repeat(Math.min(12, m.length - 8))}${m.slice(-4)}`));
+  }
+
+  // Consistent, honest empty states instead of fabricated placeholder data.
+  function emptyState({ title, body, actionHref, actionLabel } = {}) {
+    return `<div class="ws-empty"><h2>${esc(title || "Nothing here yet")}</h2><p>${esc(body || "")}</p>${actionHref ? `<a class="ws-button primary" href="${esc(actionHref)}">${esc(actionLabel || "Continue")}</a>` : ""}</div>`;
+  }
+
   async function loadProjects() { return (await App.api("/projects")).projects || []; }
   function requireScan(target) { const scan = currentScan(); if (!scan) { target.innerHTML = `<div class="ws-empty"><h2>No active analysis</h2><p>Open Code Studio, analyze code, then return here.</p><a class="ws-button primary" href="studio.html">Open Code Studio</a></div>`; return null; } return scan; }
 
-  return { renderShell, setContext, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile };
+  return { renderShell, setContext, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
 })();
 window.BugWorkspace = BugWorkspace;
 document.addEventListener("DOMContentLoaded", () => { BugWorkspace.renderShell(); });

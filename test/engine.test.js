@@ -63,6 +63,29 @@ test("security middleware preserves submitted source while normalising metadata"
   assert.equal(req.body.filename, "demo.js");
 });
 
+test("every code-bearing field survives sanitisation intact", () => {
+  // Angle-bracket stripping silently corrupts comparisons, generics, JSX and
+  // HTML. Any field that can carry source must be exempt, not just "code".
+  const source = {
+    code: "template<typename T> bool lt(T a, T b){ return a < b; }",
+    content: "const el = <div className=\"x\">{a > b ? 1 : 2}</div>;",
+    source: "SELECT * FROM t WHERE a <> b",
+    selection: "if (a<b && c>d) { return <T>x; }",
+    optimizedCode: "for (let i=0;i<n;i++){}",
+    suggestedFix: "if (a < b) return;",
+    originalCode: "a>b",
+    patch: "- a<b\n+ a<=b"
+  };
+  const req = { body: { ...source, filename: "<demo>.tsx", message: "hi <script>alert(1)</script>" } };
+  sanitizeBody(req, {}, () => {});
+  for (const [key, value] of Object.entries(source)) {
+    assert.equal(req.body[key], value, `${key} must pass through untouched`);
+  }
+  // Metadata is still normalised.
+  assert.equal(req.body.filename, "demo.tsx");
+  assert.ok(!req.body.message.includes("script"), "metadata is still sanitised");
+});
+
 test("benchmark fixtures cover every declared language without fabricated execution", async () => {
   const cases = JSON.parse(await readFile(new URL("./fixtures/benchmark-cases.json", import.meta.url)));
   assert.equal(cases.length, 19);

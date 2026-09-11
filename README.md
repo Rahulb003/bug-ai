@@ -1,6 +1,8 @@
 # BUG AI
 
-BUG AI is an evidence-led code workspace for analyzing, understanding, reviewing, and managing source code. It preserves the original dashboard, authentication, workspaces, history, analytics, notifications, administration, ZIP/project import, and public-GitHub analysis while adding a connected multi-page developer workspace.
+BUG AI is an evidence-led code workspace for analyzing, understanding, reviewing, and managing source code. It preserves the original dashboard, authentication, workspaces, history, analytics, notifications, administration, multi-file project import, and public-GitHub analysis while adding a connected multi-page developer workspace.
+
+Projects are imported as a list of files (`POST /api/upload-project` takes `{ files: [{ name, content }] }`). **There is no ZIP handling yet** — no archive is unpacked anywhere in the codebase.
 
 ## Run
 
@@ -70,7 +72,7 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for what remains out of scope.
 - `ai/` supplies optional, structured AI output without treating source content as instructions: `aiAnalyzer.js` (potential findings), `aiFixer.js` (patch proposals), `aiOptimizer.js` (optimizations), and `aiTestGenerator.js` (test code). Each degrades to a labelled "not available" result when no key is configured, the API fails, or the response is malformed.
 - `verification/` reports only checks that actually run. User code is never executed in the Node API process.
 
-The former `scannerEngine.js` remains for legacy compatibility; active scan services use the modular engine. Projects are stored compatibly beside existing `db.json` records under a `projects` collection.
+Projects are stored compatibly beside existing `db.json` records under a `projects` collection.
 
 ## Language coverage
 

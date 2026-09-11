@@ -40,7 +40,9 @@ export function sanitizeBody(req, res, next) {
     // Source files are untrusted data, but they are not HTML. Altering their
     // contents here corrupts valid programs (for example comparisons and JSX).
     // Validation is performed at each API boundary; only metadata is normalised.
-    const sourceKeys = new Set(["code", "content", "source", "files"]);
+    // Every field that can legitimately carry source code. Stripping angle
+    // brackets here silently corrupts comparisons, generics, JSX and HTML.
+    const sourceKeys = new Set(["code", "content", "source", "files", "selection", "optimizedCode", "suggestedFix", "patch", "originalCode"]);
     req.body = Object.fromEntries(
       Object.entries(req.body).map(([key, value]) => [
         key,

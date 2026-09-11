@@ -503,4 +503,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   openTab({ name: "scratch.py", content: "def example(value):\n    return eval(value) / 0", language: "auto" });
   if (currentProjectId) await loadProjectFiles(currentProjectId);
   if (lastScan?.findings) renderFindings(lastScan);
+
+  // Deep link from any other page: ?file=src/auth.js&line=42&finding=<id>
+  const params = new URLSearchParams(location.search);
+  const wantedFile = params.get("file");
+  const wantedLine = Number(params.get("line")) || 0;
+  const wantedColumn = Number(params.get("column")) || 1;
+  const wantedFinding = params.get("finding");
+  if (wantedFile) {
+    const known = projectFiles.find((f) => f.name === wantedFile);
+    if (known) { selectedTreeFile = known.name; openTab({ name: known.name, content: known.content, language: known.language || "auto" }); renderTree(); }
+    else App.showToast(`${wantedFile} is not in the open project.`, "warning", "File not found");
+  }
+  if (wantedLine) {
+    editor.revealLineInCenter(wantedLine);
+    editor.setPosition({ lineNumber: wantedLine, column: wantedColumn });
+    editor.focus();
+  }
+  if (wantedFinding && lastScan?.findings?.some((f) => f.id === wantedFinding)) showFinding(wantedFinding);
 });
