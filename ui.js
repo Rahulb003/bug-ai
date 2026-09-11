@@ -153,17 +153,29 @@ const App = (() => {
     return true;
   }
 
+  // The shell's Online pill reflects whether the last real call reached the API.
+  function signalConnection(ok) {
+    try { window.dispatchEvent(new CustomEvent("bugai:api", { detail: { ok } })); } catch { /* no DOM in tests */ }
+  }
+
   async function api(path, options = {}) {
     const apiBase = await discoverApiBase();
-    const response = await fetch(`${apiBase}${path}`, {
-      method: options.method || "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
-        ...(options.headers || {})
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined
-    });
+    let response;
+    try {
+      response = await fetch(`${apiBase}${path}`, {
+        method: options.method || "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
+          ...(options.headers || {})
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+    } catch (error) {
+      signalConnection(false);
+      throw error;
+    }
+    signalConnection(true);
 
     const text = await response.text();
     let payload = {};
