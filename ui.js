@@ -91,7 +91,11 @@ const App = (() => {
     localStorage.setItem("bugzero_theme", theme);
     const toggle = document.querySelector("[data-theme-toggle]");
     if (toggle) {
-      toggle.textContent = theme === "system" ? "Auto" : resolved === "light" ? "Light" : "Dark";
+      const label = theme === "system" ? "Auto" : resolved === "light" ? "Light" : "Dark";
+      // The workspace shell renders an icon inside this button; only pages that
+      // use the plain text button get their label overwritten.
+      if (!toggle.querySelector("#ws-theme-icon")) toggle.textContent = label;
+      else toggle.title = `Theme: ${label}`;
       toggle.setAttribute("aria-label", `Current theme ${resolved}`);
     }
   }

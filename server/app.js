@@ -17,7 +17,7 @@ const rootDir = path.resolve(__dirname, "..");
 const publicFiles = new Set([
   "index.html", "dashboard.html", "history.html", "login.html", "signup.html", "admin.html",
   "analyzer.html", "upload.html", "frontend.html", "style.css", "ui.js", "workspace.css", "workspace.js",
-  "studio.html", "projects.html", "optimizer.html", "security.html", "tests.html", "review.html", "architecture.html", "dependencies.html", "assistant.html", "git.html", "analytics.html", "settings.html"
+  "studio.html", "studio.js", "projects.html", "optimizer.html", "security.html", "tests.html", "review.html", "architecture.html", "dependencies.html", "assistant.html", "git.html", "analytics.html", "settings.html"
 ]);
 
 app.use(cors({

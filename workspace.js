@@ -278,3 +278,12 @@ const BugWorkspace = (() => {
 })();
 window.BugWorkspace = BugWorkspace;
 document.addEventListener("DOMContentLoaded", () => { BugWorkspace.renderShell(); });
+
+// Shared by studio.js and tests.html so the two render generated tests identically.
+window.renderGeneratedTests = function (out, esc) {
+  const list = (out.tests || []).length
+    ? out.tests.map((t) => `<li><b>${esc(t.name)}</b> — ${esc(t.intent || "")}${t.code ? `<pre class="ws-code">${esc(t.code)}</pre>` : ""}</li>`).join("")
+    : "";
+  const detail = out.status === "generated" ? esc(out.framework || "") : esc(out.reason || out.framework || "");
+  return `<p><b>${esc(out.status)}</b> · ${detail}</p>` + (list ? `<ul class="ws-list">${list}</ul>` : "<div class='ws-empty'>No tests generated.</div>");
+};

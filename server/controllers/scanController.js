@@ -8,6 +8,7 @@ import { proposeFixes } from "../services/engine/ai/aiFixer.js";
 import { proposeOptimization } from "../services/engine/ai/aiOptimizer.js";
 import { verifyStatic } from "../services/engine/verification/verificationEngine.js";
 import { runInSandbox } from "../services/engine/verification/sandboxExecutor.js";
+import { explainCode } from "../services/engine/ai/aiExplainer.js";
 import { generateTestCode } from "../services/engine/ai/aiTestGenerator.js";
 import { getLanguage } from "../services/engine/languageRegistry.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -118,6 +119,18 @@ export const verifyController = asyncHandler(async (req, res) => {
   // project or GitHub paths, which accept code from public repositories.
   const executionVerification = await runInSandbox({ code: req.body.code || req.body.source, language: result.language });
   res.json({ status: result.verification.status, verification: result.verification, executionVerification, findings: result.findings });
+});
+
+export const explainController = asyncHandler(async (req, res) => {
+  const result = await transientAnalysis(req.body, { includeAi: false });
+  const explanation = await explainCode({
+    source: req.body.code || req.body.source,
+    language: result.language,
+    sourceName: req.body.filename || "Live snippet",
+    selection: req.body.selection,
+    mode: req.body.mode
+  });
+  res.json(explanation);
 });
 
 export const fixController = asyncHandler(async (req, res) => {
