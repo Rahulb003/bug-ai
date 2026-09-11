@@ -318,3 +318,15 @@ body.workspace-page { background:var(--ws-bg); color:var(--ws-text); margin:0; m
 .op-line.del { background:color-mix(in srgb,var(--ws-danger) 13%,transparent); color:#ffc2c2; }
 .op-line.add { background:color-mix(in srgb,var(--ws-ok) 13%,transparent); color:#bff0d0; }
 .op-changes { margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; font-size:13px; line-height:1.55; }
+
+/* ---- test lab ------------------------------------------------------- */
+.tl-tabs { display:flex; gap:5px; margin-top:14px; padding-bottom:8px; border-bottom:1px solid var(--ws-line); }
+.tl-test, .tl-result { margin-top:12px; border-left:3px solid var(--ws-line); }
+.tl-test header, .tl-result header { display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:6px; }
+.tl-test header b, .tl-result header b { flex:1; font-size:14px; }
+.tl-test .ws-code, .tl-result .ws-code { margin-top:8px; max-height:320px; }
+.tl-result.tone-ok { border-left-color:var(--ws-ok); }
+.tl-result.tone-warn { border-left-color:var(--ws-warn); }
+.tl-result.tone-bad { border-left-color:var(--ws-danger); }
+.tl-failures { margin-top:8px; display:flex; flex-direction:column; gap:8px; }
+.tl-failures > div > b { color:var(--ws-danger); font-size:13px; }

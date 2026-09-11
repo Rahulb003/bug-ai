@@ -1,22 +1,26 @@
-function sanitizeValue(value) {
-  if (typeof value === "string") {
-    return value
-      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-      .replace(/[<>]/g, "")
-      .replace(/\u0000/g, "")
-      .trim();
-  }
+// Every field that can legitimately carry source code, at ANY depth of the
+// body. Stripping angle brackets from these silently corrupts comparisons,
+// generics, JSX, HTML and arrow functions ("=>" becomes "="). Only metadata
+// is normalised; source is validated at each API boundary instead.
+const SOURCE_KEYS = new Set(["code", "content", "source", "files", "selection", "optimizedCode", "suggestedFix", "patch", "originalCode", "tests"]);
 
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeValue(item));
-  }
+function sanitizeString(value) {
+  return value
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/[<>]/g, "")
+    .replace(/\u0000/g, "")
+    .trim();
+}
 
+// Key-aware: a value reached through a source key is passed through untouched,
+// including everything nested inside it (e.g. tests[].code, files[].content).
+function sanitizeValue(value, key) {
+  if (key !== undefined && SOURCE_KEYS.has(key)) return value;
+  if (typeof value === "string") return sanitizeString(value);
+  if (Array.isArray(value)) return value.map((item) => sanitizeValue(item));
   if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, sanitizeValue(item)])
-    );
+    return Object.fromEntries(Object.entries(value).map(([childKey, item]) => [childKey, sanitizeValue(item, childKey)]));
   }
-
   return value;
 }
 
@@ -37,18 +41,7 @@ export function securityHeaders(req, res, next) {
 
 export function sanitizeBody(req, res, next) {
   if (req.body && typeof req.body === "object") {
-    // Source files are untrusted data, but they are not HTML. Altering their
-    // contents here corrupts valid programs (for example comparisons and JSX).
-    // Validation is performed at each API boundary; only metadata is normalised.
-    // Every field that can legitimately carry source code. Stripping angle
-    // brackets here silently corrupts comparisons, generics, JSX and HTML.
-    const sourceKeys = new Set(["code", "content", "source", "files", "selection", "optimizedCode", "suggestedFix", "patch", "originalCode"]);
-    req.body = Object.fromEntries(
-      Object.entries(req.body).map(([key, value]) => [
-        key,
-        sourceKeys.has(key) ? value : sanitizeValue(value)
-      ])
-    );
+    req.body = sanitizeValue(req.body);
   }
   next();
 }

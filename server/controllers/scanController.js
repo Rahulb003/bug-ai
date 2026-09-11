@@ -9,6 +9,8 @@ import { proposeOptimization } from "../services/engine/ai/aiOptimizer.js";
 import { verifyStatic } from "../services/engine/verification/verificationEngine.js";
 import { runInSandbox } from "../services/engine/verification/sandboxExecutor.js";
 import { explainCode } from "../services/engine/ai/aiExplainer.js";
+import { runGeneratedTests, runnerCapability, discoverProjectTests } from "../services/engine/verification/testRunner.js";
+import { requireProject } from "../services/projectService.js";
 import { generateTestCode } from "../services/engine/ai/aiTestGenerator.js";
 import { getLanguage } from "../services/engine/languageRegistry.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -111,6 +113,28 @@ export const generateTestsController = asyncHandler(async (req, res) => {
     testRunner: languageInfo?.testRunner
   });
   res.json(generated);
+});
+
+// Executes generated test code in the sandbox and reports the runner's real
+// output. A pass is only ever reported for a suite that actually ran.
+export const runTestsController = asyncHandler(async (req, res) => {
+  let language = String(req.body.language || "").toLowerCase();
+  if (!language || language === "auto") {
+    const probe = req.body.code || (req.body.tests || [])[0]?.code || "// no source";
+    language = (await transientAnalysis({ code: probe, language: "auto", filename: req.body.filename }, { includeAi: false })).language;
+  }
+  res.json(await runGeneratedTests({ tests: req.body.tests || [], language }));
+});
+
+// Lets the UI state up front whether execution is possible, instead of
+// offering a Run button that cannot work.
+export const testCapabilityController = asyncHandler(async (req, res) => {
+  res.json(runnerCapability(String(req.query.language || "javascript").toLowerCase()));
+});
+
+export const projectTestsController = asyncHandler(async (req, res) => {
+  const project = await requireProject(req.user, req.params.projectId);
+  res.json(discoverProjectTests(project));
 });
 
 export const verifyController = asyncHandler(async (req, res) => {

@@ -47,28 +47,30 @@ export async function runInSandbox({ code, language }) {
       // and "--allow-fs-write=false" would instead GRANT write to a path named
       // "false" (verified against Node v24).
       const child = spawn(process.execPath, ["--permission", `--allow-fs-read=${scriptPath}`, scriptPath], {
-        timeout: TIMEOUT_MS,
         killSignal: "SIGKILL",
         env: scrubbedEnv(),
         cwd: dir,
         windowsHide: true
       });
 
+      // Own the timer rather than inferring a timeout from the exit code. The
+      // previous heuristic ("non-zero exit, no signal, empty stderr") reported
+      // an ordinary failing program — a failing test suite, for instance — as
+      // a timeout, because on Windows a killed child also exits 1 with no signal.
+      let killedByTimeout = false;
+      const timer = setTimeout(() => { killedByTimeout = true; child.kill("SIGKILL"); }, TIMEOUT_MS);
+
       let stdout = "", stderr = "";
       child.stdout.on("data", (d) => { stdout = (stdout + d).slice(0, MAX_OUTPUT_BYTES); });
       child.stderr.on("data", (d) => { stderr = (stderr + d).slice(0, MAX_OUTPUT_BYTES); });
-      child.on("close", (exitCode, signal) => resolve({ exitCode, signal, stdout, stderr }));
-      child.on("error", (error) => resolve({ exitCode: null, signal: null, stdout: "", stderr: error.message }));
+      child.on("close", (exitCode, signal) => { clearTimeout(timer); resolve({ exitCode, signal, stdout, stderr, killedByTimeout }); });
+      child.on("error", (error) => { clearTimeout(timer); resolve({ exitCode: null, signal: null, stdout: "", stderr: error.message, killedByTimeout }); });
     });
-
-    // On Windows a timeout kill surfaces as exitCode 1 with a null signal, so
-    // treat "killed with no clean exit" as a timeout rather than trusting signal.
-    const timedOut = result.signal === "SIGTERM" || result.signal === "SIGKILL" || (result.exitCode !== 0 && result.signal === null && !result.stderr);
 
     return {
       status: "completed",
       exitCode: result.exitCode,
-      timedOut,
+      timedOut: result.killedByTimeout,
       timeoutMs: TIMEOUT_MS,
       stdout: result.stdout,
       stderr: result.stderr,

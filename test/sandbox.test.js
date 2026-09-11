@@ -115,14 +115,22 @@ test("the sandbox is not reachable from the project or GitHub analysis paths", a
     }
   };
   for (const root of roots) await walk(root);
-  assert.deepEqual(offenders, ["server/controllers/scanController.js"], `only verifyController may execute code; found: ${offenders.join(", ")}`);
+  // Exactly two sanctioned callers: verifyController (a single pasted snippet)
+  // and testRunner.js (generated test code for that same snippet). Anything
+  // else appearing here means execution leaked into a new path.
+  assert.deepEqual(offenders.sort(), ["server/controllers/scanController.js", "server/services/engine/verification/testRunner.js"], `unexpected execution call sites: ${offenders.join(", ")}`);
 
   const controller = await readFile("server/controllers/scanController.js", "utf8");
-  const callSite = controller.slice(controller.indexOf("export const verifyController"), controller.indexOf("export const fixController"));
-  assert.ok(callSite.includes("runInSandbox"), "the only call site must be inside verifyController");
-  assert.equal((controller.match(/await runInSandbox\(/g) || []).length, 1, "exactly one execution call site");
-  for (const other of ["scanGithubController", "uploadProjectController"]) {
-    const section = controller.slice(controller.indexOf(`export const ${other}`));
-    assert.ok(!section.slice(0, section.indexOf("export const", 10)).includes("runInSandbox"), `${other} must never execute code`);
+  const section = (name) => { const start = controller.indexOf(`export const ${name}`); const end = controller.indexOf("\nexport const ", start + 1); return controller.slice(start, end < 0 ? undefined : end); };
+  assert.ok(section("verifyController").includes("runInSandbox"), "verifyController is the direct sandbox caller");
+  assert.equal((controller.match(/await runInSandbox\(/g) || []).length, 1, "exactly one direct execution call site in the controllers");
+  assert.ok(section("runTestsController").includes("runGeneratedTests"), "runTestsController is the only route into the test runner");
+  assert.equal((controller.match(/runGeneratedTests\(/g) || []).length, 1, "exactly one test-runner call site");
+  for (const other of ["scanGithubController", "uploadProjectController", "scanCodeController", "analyzeController", "fixController", "optimizeController"]) {
+    const body = section(other);
+    assert.ok(!/runInSandbox|runGeneratedTests/.test(body), `${other} must never execute code`);
   }
+  // The test runner itself must not reach project or repository files.
+  const runner = await readFile("server/services/engine/verification/testRunner.js", "utf8");
+  assert.ok(!/githubClient|scanService|projectModel|readDatabase/.test(runner), "testRunner must only execute code it is handed, never stored or fetched files");
 });

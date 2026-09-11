@@ -86,6 +86,23 @@ test("every code-bearing field survives sanitisation intact", () => {
   assert.ok(!req.body.message.includes("script"), "metadata is still sanitised");
 });
 
+test("nested code fields survive sanitisation too", () => {
+  // /api/test/run sends tests[].code and /api/upload-project sends
+  // files[].content. A top-level-only exemption turned "=>" into "=" inside
+  // every generated test, so exemption has to apply at any depth.
+  const req = { body: {
+    tests: [{ name: "adds", code: 'test("a", () => assert.ok(1 < 2));' }],
+    files: [{ name: "x.tsx", content: "const C = () => <div>{a > b}</div>;" }],
+    wrapper: { selection: "if (a<b && c>d) {}" },
+    label: "<b>meta</b>"
+  } };
+  sanitizeBody(req, {}, () => {});
+  assert.equal(req.body.tests[0].code, 'test("a", () => assert.ok(1 < 2));');
+  assert.equal(req.body.files[0].content, "const C = () => <div>{a > b}</div>;");
+  assert.equal(req.body.wrapper.selection, "if (a<b && c>d) {}");
+  assert.equal(req.body.label, "bmeta/b", "non-source metadata is still normalised at depth");
+});
+
 test("benchmark fixtures cover every declared language without fabricated execution", async () => {
   const cases = JSON.parse(await readFile(new URL("./fixtures/benchmark-cases.json", import.meta.url)));
   assert.equal(cases.length, 19);

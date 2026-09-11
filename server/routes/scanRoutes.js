@@ -11,6 +11,9 @@ import {
   generateTestsController,
   verifyController,
   explainController,
+  runTestsController,
+  testCapabilityController,
+  projectTestsController,
   getScanController,
   getScanFindingsController,
   getScanVerificationController
@@ -29,6 +32,9 @@ router.post("/optimize", requireAuth, optimizeController);
 router.post("/test/generate", requireAuth, generateTestsController);
 router.post("/verify", requireAuth, verifyController);
 router.post("/explain", requireAuth, explainController);
+router.post("/test/run", requireAuth, runTestsController);
+router.get("/test/capability", requireAuth, testCapabilityController);
+router.get("/projects/:projectId/tests", requireAuth, projectTestsController);
 router.post("/project/analyze", requireAuth, uploadProjectController);
 router.get("/scans/:scanId", requireAuth, getScanController);
 router.get("/scans/:scanId/findings", requireAuth, getScanFindingsController);
