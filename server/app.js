@@ -17,8 +17,10 @@ const rootDir = path.resolve(__dirname, "..");
 const publicFiles = new Set([
   "index.html", "dashboard.html", "history.html", "login.html", "signup.html", "admin.html",
   "analyzer.html", "upload.html", "frontend.html", "style.css", "ui.js", "workspace.css", "workspace.js",
-  "studio.html", "studio.js", "projects.html", "optimizer.html", "security.html", "tests.html", "review.html", "architecture.html", "dependencies.html", "assistant.html", "git.html", "analytics.html", "settings.html"
+  "studio.html", "studio.js", "pages.js", "favicon.svg", "projects.html", "optimizer.html", "security.html", "tests.html", "review.html", "architecture.html", "dependencies.html", "assistant.html", "git.html", "analytics.html", "settings.html"
 ]);
+
+app.get("/favicon.ico", (req, res) => res.type("image/svg+xml").sendFile(path.join(rootDir, "favicon.svg")));
 
 app.use(cors({
   origin: true,

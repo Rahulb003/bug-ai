@@ -1,1 +1,46 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Code Review | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="review"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script>document.addEventListener("DOMContentLoaded",()=>{if(!App.requireAuth())return;const root=document.getElementById("workspace-content"),scan=BugWorkspace.requireScan(root);if(!scan)return;const bySource=(scan.findings||[]).reduce((m,x)=>{(m[x.source||"deterministic"]??=[]).push(x);return m;},{});root.innerHTML=`<div class="ws-notice">Review separates deterministic evidence from AI-only suggestions. AI-only issues are not confirmed defects.</div>${Object.entries(bySource).map(([source,items])=>`<section class="ws-card" style="margin-top:16px"><h2>${BugWorkspace.esc(source)} findings</h2>${items.map(BugWorkspace.findingCard).join("")}</section>`).join("")||"<div class=\"ws-empty\">No active findings to review.</div>"}`);</script></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Code Review | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="review"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script src="pages.js"></script><script>
+document.addEventListener("DOMContentLoaded", () => {
+  if (!App.requireAuth()) return;
+  const root = document.getElementById("workspace-content");
+  const esc = BugWorkspace.esc;
+  const scan = BugWorkspace.currentScan();
+  if (!scan) {
+    root.innerHTML = BugWorkspace.emptyState({ title: "Nothing to review", body: "A review is built from a completed analysis. Analyze a file in Code Studio first.", actionHref: "studio.html", actionLabel: "Open Code Studio" });
+    return;
+  }
+  const findings = scan.findings || [];
+  const c = BugPages.counts(findings);
+  const blocking = findings.filter((f) => ["CRITICAL", "HIGH"].includes(BugPages.sev(f))).sort(BugPages.bySeverity);
+
+  // The verdict is derived from severity counts in this scan. It is not a
+  // human review and makes no claim about design, intent or requirements.
+  const verdict = c.CRITICAL ? ["Request changes", "danger", "Critical findings must be resolved before merge."]
+    : c.HIGH ? ["Request changes", "danger", "High-severity findings should be resolved before merge."]
+    : c.MEDIUM ? ["Comment", "warn", "No blocking issues, but medium-severity findings are worth addressing."]
+    : findings.length ? ["Approve with comments", "ok", "Only low-severity or informational findings remain."]
+    : ["Approve", "ok", "No configured rule matched. This is not a guarantee of correctness."];
+
+  const groups = [...new Set(findings.map((f) => f.category || "quality"))].sort();
+  const rows = groups.map((g) => {
+    const items = findings.filter((f) => (f.category || "quality") === g);
+    const top = items.slice().sort(BugPages.bySeverity)[0];
+    return "<tr><td>" + esc(g) + "</td><td>" + items.length + '</td><td><span class="ws-badge ' + BugPages.sevClass(top) + '">' + esc(BugPages.sev(top)) + "</span></td></tr>";
+  }).join("");
+
+  root.innerHTML = BugPages.header({
+    title: "Code Review",
+    subtitle: (scan.sourceName || "Live snippet") + " · " + findings.length + " finding(s) across " + groups.length + " categor" + (groups.length === 1 ? "y" : "ies"),
+    actions: '<a class="ws-button" href="studio.html">Back to Studio</a>'
+  })
+  + '<section class="ws-card pg-verdict tone-' + verdict[1] + '"><h3>' + esc(verdict[0]) + "</h3><p>" + esc(verdict[2]) + '</p><p class="ws-muted">Derived from finding severity in this scan only — severity-weighted triage, not a human review.</p></section>'
+  + '<section class="ws-card" style="margin-top:16px"><h3>Blocking items</h3>'
+  + (blocking.length ? '<ol class="pg-blocking">' + blocking.map((f) => '<li><button class="pg-link" data-goto="' + esc(f.id) + '"><b>' + esc(f.title) + "</b> — " + esc(f.file || "snippet") + ":" + (f.line || "?") + "</button></li>").join("") + "</ol>" : '<p class="ws-muted">None. No CRITICAL or HIGH findings in this scan.</p>')
+  + "</section>"
+  + (groups.length ? '<section class="ws-card" style="margin-top:16px"><h3>By category</h3><table class="ws-table"><thead><tr><th>Category</th><th>Findings</th><th>Highest severity</th></tr></thead><tbody>' + rows + "</tbody></table></section>" : "");
+
+  root.querySelectorAll("[data-goto]").forEach((b) => b.onclick = () => {
+    const f = findings.find((x) => x.id === b.dataset.goto);
+    BugWorkspace.openInStudio({ file: f.file, line: f.line, findingId: f.id });
+  });
+});
+</script></body></html>

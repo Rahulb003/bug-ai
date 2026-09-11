@@ -1,1 +1,34 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Security Center | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="security"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script>document.addEventListener("DOMContentLoaded",()=>{if(!App.requireAuth())return;const root=document.getElementById("workspace-content"),scan=BugWorkspace.requireScan(root);if(!scan)return;const items=(scan.findings||[]).filter(x=>x.category==="security");root.innerHTML=`<div class="ws-notice">Static security rules completed for the active scan. Dependency vulnerability and runtime testing are explicitly unavailable unless an isolated toolchain is configured.</div><section class="ws-card" style="margin-top:16px"><h2>Security findings (${items.length})</h2>${items.length?items.map(BugWorkspace.findingCard).join(""):"<div class=\"ws-empty\">No static security findings in this scan.</div>"}</section>`;});</script></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Security Center | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="security"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script src="pages.js"></script><script>
+document.addEventListener("DOMContentLoaded", () => {
+  if (!App.requireAuth()) return;
+  const root = document.getElementById("workspace-content");
+  const esc = BugWorkspace.esc;
+  const scan = BugWorkspace.currentScan();
+  if (!scan) {
+    root.innerHTML = BugWorkspace.emptyState({ title: "No security scan yet", body: "Security findings come from the deterministic security analyzer. Analyze a file in Code Studio first.", actionHref: "studio.html", actionLabel: "Open Code Studio" });
+    return;
+  }
+  const all = scan.findings || [];
+  const findings = all.filter((f) => String(f.category).toLowerCase() === "security");
+  // CWE identifiers come from the matched rule definitions only; nothing here infers one.
+  const cwes = [...new Set(findings.flatMap((f) => f.references || []))].sort();
+  const secrets = findings.filter((f) => /secret|credential|key|token|password/i.test(f.title));
+
+  let html = BugPages.header({
+    title: "Security Center",
+    subtitle: findings.length + " security finding(s) of " + all.length + " total in " + (scan.sourceName || "the current scan"),
+    actions: '<span class="ws-badge pg-count"></span><a class="ws-button" href="studio.html">Back to Studio</a>'
+  });
+  if (findings.length) html += BugPages.severityBar(findings);
+  if (secrets.length) html += '<div class="ws-notice pg-secret-notice">' + esc(String(secrets.length)) + ' possible credential(s) detected. Values are masked below — rotate anything real and move it to environment configuration.</div>';
+  if (cwes.length) html += '<p class="ws-muted pg-cwe">Weaknesses referenced by the matched rules: ' + cwes.map((c) => '<span class="ws-badge">' + esc(c) + "</span>").join(" ") + "</p>";
+  html += BugPages.toolbar({ id: "se" }) + '<div class="pg-list"></div>';
+  root.innerHTML = html;
+
+  if (!findings.length) {
+    root.querySelector(".pg-list").innerHTML = BugWorkspace.emptyState({ title: "No security findings", body: "No configured security rule matched. That is not proof the code is secure." });
+    return;
+  }
+  BugPages.wireList({ container: root, findings, id: "se", maskEvidence: true });
+});
+</script></body></html>
