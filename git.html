@@ -1,1 +1,48 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Git / GitHub | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="git"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script>document.addEventListener("DOMContentLoaded",async()=>{if(!App.requireAuth())return;const root=document.getElementById("workspace-content");root.innerHTML=`<div class="ws-notice">BUG AI can statically import a public GitHub repository from Code Studio or the existing Workspace. Local Git status, commits, and push actions are not available because the server does not access your working directory.</div><section class="ws-card" style="margin-top:16px"><div class="ws-toolbar"><h2 style="margin:0">CI templates</h2><button class="ws-button" id="load">Load templates</button></div><div id="templates" class="ws-empty">Templates are available for copying after loading.</div></section>`;document.getElementById("load").onclick=async()=>{const templates=await App.getDevopsTemplates();document.getElementById("templates").innerHTML=Object.entries(templates).map(([name,content])=>`<h3>${BugWorkspace.esc(name)}</h3><pre class="ws-code">${BugWorkspace.esc(content)}</pre>`).join("");};});</script></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Git / GitHub | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="git"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script src="pages.js"></script><script>
+document.addEventListener("DOMContentLoaded", async () => {
+  if (!App.requireAuth()) return;
+  const root = document.getElementById("workspace-content");
+  const esc = BugWorkspace.esc;
+
+  root.innerHTML = BugPages.header({
+    title: "Git / GitHub",
+    subtitle: "Import and analyze a public repository, and copy CI templates.",
+    actions: '<a class="ws-button" href="projects.html">Projects</a>'
+  })
+  + '<div class="ws-notice">BUG AI reads public repositories over the GitHub API. It has <b>no write access</b>: it cannot commit, push, branch, merge or open pull requests, and no credential is stored. Anything that would change a remote repository is out of scope.</div>'
+  + '<section class="ws-card" style="margin-top:16px"><h3>Import a public repository</h3>'
+  + '<p class="ws-muted">Accepts <code>https://github.com/owner/repository</code>. Dependency and generated directories are skipped and the number of loaded files is capped.</p>'
+  + '<div class="ws-toolbar"><input class="ws-input" id="repo" placeholder="https://github.com/owner/repository" style="flex:1;min-width:260px"><button class="ws-button primary" id="import">Import &amp; analyze</button></div>'
+  + '<div id="repo-out" style="margin-top:14px"></div></section>'
+  + '<section class="ws-card" style="margin-top:16px"><h3>CI templates</h3><p class="ws-muted">Copy one of these into your repository to call BUG AI from CI. They are templates only — nothing is installed for you.</p><div id="tpl"></div></section>';
+
+  const out = document.getElementById("repo-out");
+  document.getElementById("import").onclick = async () => {
+    const url = document.getElementById("repo").value.trim();
+    if (!url) return App.showToast("Enter a repository URL.", "warning", "Nothing to import");
+    out.innerHTML = '<p class="ws-muted">Fetching and analyzing… large repositories can take a while.</p>';
+    try {
+      const scan = await App.api("/scan-github", { method: "POST", body: { repoUrl: url } });
+      BugWorkspace.setContext({ scan });
+      const findings = scan.findings || scan.bugs || [];
+      out.innerHTML = '<div class="ws-grid cols-3"><div class="ws-card"><span class="ws-muted">Findings</span><div class="ws-metric">' + findings.length + "</div></div>"
+        + '<div class="ws-card"><span class="ws-muted">Risk prioritisation</span><div class="ws-metric">' + (scan.riskScore ?? "—") + '</div><p class="ws-muted">Not an accuracy metric.</p></div>'
+        + '<div class="ws-card"><span class="ws-muted">Verification</span><div class="ws-metric" style="font-size:17px">' + esc(String(scan.verification?.status || "NOT RUN").replaceAll("_", " ")) + "</div></div></div>"
+        + '<div class="ws-toolbar" style="margin-top:14px"><a class="ws-button primary" href="analyzer.html">Review findings</a><a class="ws-button" href="security.html">Security Center</a><a class="ws-button" href="studio.html">Open Studio</a></div>';
+      App.showToast(findings.length + " finding(s) from the repository.", "success", "Import complete");
+    } catch (error) {
+      out.innerHTML = BugWorkspace.emptyState({ title: "Import failed", body: error.message });
+    }
+  };
+
+  try {
+    const templates = await App.api("/devops/templates");
+    const entries = Object.entries(templates || {});
+    document.getElementById("tpl").innerHTML = entries.length
+      ? entries.map(([name, body]) => '<details class="fcard-more"><summary>' + esc(name) + '</summary><pre class="ws-code">' + esc(body) + "</pre></details>").join("")
+      : '<p class="ws-muted">No templates available.</p>';
+  } catch (error) {
+    document.getElementById("tpl").innerHTML = '<p class="ws-muted">' + esc(error.message) + "</p>";
+  }
+});
+</script></body></html>

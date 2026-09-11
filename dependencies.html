@@ -1,1 +1,59 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dependencies | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="dependencies"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script>document.addEventListener("DOMContentLoaded",async()=>{if(!App.requireAuth())return;const root=document.getElementById("workspace-content"),id=BugWorkspace.selectedProject();if(!id){root.innerHTML="<div class='ws-empty'><h2>No project selected</h2><a class='ws-button primary' href='projects.html'>Open Projects</a></div>";return;}try{const {dependencies:d}=await App.api(`/projects/${id}/dependencies`);root.innerHTML=`<div class="ws-notice">Vulnerability status: <b>${BugWorkspace.esc(d.vulnerabilityStatus)}</b>. ${BugWorkspace.esc(d.vulnerabilityReason)}</div><div class="ws-grid cols-2" style="margin-top:16px"><section class="ws-card"><h2>Declared dependencies</h2><ul>${d.declared.length?d.declared.map(x=>`<li>${BugWorkspace.esc(x)}</li>`).join(""):"<li class=\"ws-muted\">No supported manifest dependencies detected.</li>"}</ul></section><section class="ws-card"><h2>Imported packages</h2><ul>${d.imported.length?d.imported.map(x=>`<li>${BugWorkspace.esc(x)}</li>`).join(""):"<li class=\"ws-muted\">No external imports detected.</li>"}</ul></section></div><section class="ws-card" style="margin-top:16px"><h2>Dependency edges</h2><pre class="ws-code">${BugWorkspace.esc(JSON.stringify(d.edges,null,2))}</pre></section>`;}catch(e){root.innerHTML=`<div class="ws-empty">${BugWorkspace.esc(e.message)}</div>`;}});</script></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dependencies | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="dependencies"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script src="pages.js"></script><script>
+document.addEventListener("DOMContentLoaded", async () => {
+  if (!App.requireAuth()) return;
+  const root = document.getElementById("workspace-content");
+  const esc = BugWorkspace.esc;
+  const id = BugWorkspace.selectedProject();
+  if (!id) {
+    root.innerHTML = BugWorkspace.emptyState({ title: "No project selected", body: "Dependencies are read from the manifests inside a stored project.", actionHref: "projects.html", actionLabel: "Open Projects" });
+    return;
+  }
+  root.innerHTML = '<p class="ws-muted">Reading manifests…</p>';
+  let deps, files;
+  try {
+    deps = (await App.api("/projects/" + id + "/dependencies")).dependencies;
+    files = (await App.api("/projects/" + id + "/files")).files || [];
+  } catch (error) { root.innerHTML = BugWorkspace.emptyState({ title: "Could not load dependencies", body: error.message }); return; }
+
+  const MANIFESTS = ["package.json", "requirements.txt", "pyproject.toml", "pom.xml", "build.gradle", "go.mod", "Cargo.toml", "composer.json", "Gemfile"];
+  const found = files.filter((f) => MANIFESTS.includes(String(f.name).split("/").pop()));
+  const declared = deps.declared || [];
+  const imported = deps.imported || [];
+  const edges = deps.edges || [];
+
+  if (!found.length && !imported.length) {
+    root.innerHTML = BugPages.header({ title: "Dependencies", subtitle: "No supported manifest detected", actions: '<a class="ws-button" href="architecture.html">Architecture</a>' })
+      + BugWorkspace.emptyState({ title: "No supported manifest detected", body: "Add one of " + MANIFESTS.join(", ") + " to this project, or import a project that contains one." });
+    return;
+  }
+
+  // Derived purely by set comparison of real data, not inferred or guessed.
+  const declaredSet = new Set(declared);
+  const importedSet = new Set(imported);
+  const unused = declared.filter((d) => !importedSet.has(d));
+  const undeclared = imported.filter((i) => !declaredSet.has(i));
+  const usageOf = (pkg) => edges.filter((e) => e.type === "external" && (e.target === pkg || String(e.target).startsWith(pkg + "/"))).map((e) => e.from);
+
+  const table = (rows, emptyText) => rows.length
+    ? '<table class="ws-table"><thead><tr><th>Package</th><th>Used in</th></tr></thead><tbody>' + rows.map((pkg) => {
+        const users = [...new Set(usageOf(pkg))];
+        return "<tr><td><code>" + esc(pkg) + "</code></td><td>" + (users.length ? users.slice(0, 4).map((u) => '<button class="pg-link" data-file="' + esc(u) + '">' + esc(u) + "</button>").join(", ") + (users.length > 4 ? " +" + (users.length - 4) + " more" : "") : '<span class="ws-muted">no import found</span>') + "</td></tr>";
+      }).join("") + "</tbody></table>"
+    : '<p class="ws-muted">' + esc(emptyText) + "</p>";
+
+  root.innerHTML = BugPages.header({
+    title: "Dependencies",
+    subtitle: declared.length + " declared · " + imported.length + " imported · " + found.length + " manifest(s)",
+    actions: '<a class="ws-button" href="architecture.html">Architecture</a><a class="ws-button" href="studio.html">Open Studio</a>'
+  })
+  + '<div class="ws-grid cols-3"><div class="ws-card"><span class="ws-muted">Declared in manifests</span><div class="ws-metric">' + declared.length + "</div></div>"
+  + '<div class="ws-card"><span class="ws-muted">Imported in code</span><div class="ws-metric">' + imported.length + "</div></div>"
+  + '<div class="ws-card"><span class="ws-muted">Vulnerability scan</span><div class="ws-metric" style="font-size:17px">NOT AVAILABLE</div><p class="ws-muted">' + esc(deps.vulnerabilityReason || "Not configured.") + "</p></div></div>"
+  + '<section class="ws-card" style="margin-top:16px"><h3>Manifests found</h3>' + (found.length ? '<ul class="ws-list">' + found.map((f) => '<li><button class="pg-link" data-file="' + esc(f.name) + '">' + esc(f.name) + "</button></li>").join("") + "</ul>" : '<p class="ws-muted">None. The imported list below comes from import statements only.</p>') + "</section>"
+  + '<section class="ws-card" style="margin-top:16px"><h3>Declared but never imported <span class="ws-badge">' + unused.length + '</span></h3><p class="ws-muted">Listed in a manifest but no import statement referenced them. They may still be used by tooling or at runtime — confirm before removing.</p>' + table(unused, "Every declared dependency is imported somewhere.") + "</section>"
+  + '<section class="ws-card" style="margin-top:16px"><h3>Imported but not declared <span class="ws-badge">' + undeclared.length + '</span></h3><p class="ws-muted">Imported in code but absent from a manifest. These may be built-ins, transitive, or genuinely missing.</p>' + table(undeclared, "Every imported package is declared.") + "</section>"
+  + '<section class="ws-card" style="margin-top:16px"><h3>All imported packages <span class="ws-badge">' + imported.length + "</span></h3>" + table(imported, "No external imports detected.") + "</section>";
+
+  root.querySelectorAll("[data-file]").forEach((b) => b.onclick = () => BugWorkspace.openInStudio({ file: b.dataset.file }));
+});
+</script></body></html>

@@ -1,1 +1,62 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Architecture | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="architecture"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script>document.addEventListener("DOMContentLoaded",async()=>{if(!App.requireAuth())return;const root=document.getElementById("workspace-content"),id=BugWorkspace.selectedProject();if(!id){root.innerHTML="<div class='ws-empty'><h2>No project selected</h2><p>Architecture needs persisted project files.</p><a class='ws-button primary' href='projects.html'>Open Projects</a></div>";return;}try{const {architecture}=await App.api(`/projects/${id}/architecture`);root.innerHTML=`<div class="ws-notice">${BugWorkspace.esc(architecture.notes.join(" "))}</div><section class="ws-card" style="margin-top:16px"><h2>Components</h2><table class="ws-table"><thead><tr><th>File</th><th>Layer</th><th>Language</th></tr></thead><tbody>${architecture.components.map(c=>`<tr><td>${BugWorkspace.esc(c.file)}</td><td>${BugWorkspace.esc(c.layer)}</td><td>${BugWorkspace.esc(c.language)}</td></tr>`).join("")}</tbody></table></section><section class="ws-card" style="margin-top:16px"><h2>Internal relationships</h2>${architecture.relationships.length?`<ul>${architecture.relationships.map(r=>`<li>${BugWorkspace.esc(r.from)} → ${BugWorkspace.esc(r.target)}</li>`).join("")}</ul>`:"<p class=\"ws-muted\">No static internal imports detected.</p>"}</section>`;}catch(e){root.innerHTML=`<div class="ws-empty">${BugWorkspace.esc(e.message)}</div>`;}});</script></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Architecture | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="architecture"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script src="pages.js"></script><script>
+document.addEventListener("DOMContentLoaded", async () => {
+  if (!App.requireAuth()) return;
+  const root = document.getElementById("workspace-content");
+  const esc = BugWorkspace.esc;
+  const id = BugWorkspace.selectedProject();
+  if (!id) {
+    root.innerHTML = BugWorkspace.emptyState({ title: "No project selected", body: "Architecture is derived from a stored project's files. Pick one from the switcher above, or create one.", actionHref: "projects.html", actionLabel: "Open Projects" });
+    return;
+  }
+  root.innerHTML = '<p class="ws-muted">Loading project architecture…</p>';
+  let architecture;
+  try { architecture = (await App.api("/projects/" + id + "/architecture")).architecture; }
+  catch (error) { root.innerHTML = BugWorkspace.emptyState({ title: "Could not load architecture", body: error.message }); return; }
+
+  const components = architecture.components || [];
+  const relationships = architecture.relationships || [];
+  if (!components.length) {
+    root.innerHTML = BugWorkspace.emptyState({ title: "No components detected", body: "This project has no analyzable files yet." });
+    return;
+  }
+
+  const LAYERS = ["interface", "service", "data", "module", "configuration", "test"];
+  const LAYER_NOTE = {
+    interface: "Controllers, routes, handlers and API surfaces",
+    service: "Business logic, use cases and domain services",
+    data: "Models, repositories, stores and database access",
+    module: "Everything else that did not match a layer pattern",
+    configuration: "Configuration and settings files",
+    test: "Test files"
+  };
+  const present = LAYERS.filter((l) => components.some((c) => c.layer === l));
+  const languages = [...new Set(components.map((c) => c.language).filter(Boolean))].sort();
+  // Fan-in / fan-out from real internal import edges only.
+  const outDeg = {}; const inDeg = {};
+  relationships.forEach((e) => { outDeg[e.from] = (outDeg[e.from] || 0) + 1; });
+  const busiest = Object.entries(outDeg).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  root.innerHTML = BugPages.header({
+    title: "Architecture",
+    subtitle: components.length + " component(s) across " + present.length + " layer(s) · " + relationships.length + " internal import edge(s)",
+    actions: '<a class="ws-button" href="dependencies.html">Dependencies</a><a class="ws-button" href="studio.html">Open Studio</a>'
+  })
+  + '<div class="ws-notice">' + esc((architecture.notes || []).join(" ")) + "</div>"
+  + '<div class="ws-grid cols-3" style="margin-top:16px"><div class="ws-card"><span class="ws-muted">Components</span><div class="ws-metric">' + components.length + "</div></div>"
+  + '<div class="ws-card"><span class="ws-muted">Internal edges</span><div class="ws-metric">' + (architecture.coupling?.internalEdges ?? relationships.length) + '</div><p class="ws-muted">Imports between project files</p></div>'
+  + '<div class="ws-card"><span class="ws-muted">Total import edges</span><div class="ws-metric">' + (architecture.coupling?.importedEdges ?? 0) + '</div><p class="ws-muted">Including external packages</p></div></div>'
+  + '<p class="ws-muted pg-cwe" style="margin-top:14px">Languages: ' + (languages.length ? languages.map((l) => '<span class="ws-badge">' + esc(l) + "</span>").join(" ") : "none detected") + "</p>"
+  + '<div class="pg-layers">' + present.map((layer) => {
+      const items = components.filter((c) => c.layer === layer).sort((a, b) => a.file.localeCompare(b.file));
+      return '<section class="ws-card pg-layer"><header><h3>' + esc(layer) + '</h3><span class="ws-badge">' + items.length + "</span></header>"
+        + '<p class="ws-muted">' + esc(LAYER_NOTE[layer]) + "</p><ul class=\"ws-list\">"
+        + items.map((c) => '<li><button class="pg-link" data-file="' + esc(c.file) + '">' + esc(c.file) + "</button>" + (c.language ? ' <small class="ws-muted">' + esc(c.language) + "</small>" : "") + "</li>").join("")
+        + "</ul></section>";
+    }).join("") + "</div>"
+  + (busiest.length ? '<section class="ws-card" style="margin-top:16px"><h3>Most outgoing internal imports</h3><p class="ws-muted">Files importing the most other project files. Inferred from import statements, not a runtime call graph.</p><table class="ws-table"><thead><tr><th>File</th><th>Imports</th></tr></thead><tbody>' + busiest.map(([file, n]) => '<tr><td><button class="pg-link" data-file="' + esc(file) + '">' + esc(file) + "</button></td><td>" + n + "</td></tr>").join("") + "</tbody></table></section>" : "")
+  + (relationships.length ? '<section class="ws-card" style="margin-top:16px"><h3>Internal relationships</h3><table class="ws-table"><thead><tr><th>From</th><th>Imports</th></tr></thead><tbody>' + relationships.slice(0, 60).map((e) => '<tr><td><button class="pg-link" data-file="' + esc(e.from) + '">' + esc(e.from) + "</button></td><td><code>" + esc(e.target) + "</code></td></tr>").join("") + "</tbody></table>" + (relationships.length > 60 ? '<p class="ws-muted">Showing the first 60 of ' + relationships.length + ".</p>" : "") + "</section>"
+     : '<section class="ws-card" style="margin-top:16px"><h3>Internal relationships</h3><p class="ws-muted">No imports between project files were detected.</p></section>');
+
+  root.querySelectorAll("[data-file]").forEach((b) => b.onclick = () => BugWorkspace.openInStudio({ file: b.dataset.file }));
+});
+</script></body></html>

@@ -17,13 +17,23 @@ export const analyticsOverviewController = asyncHandler(async (req, res) => {
     return acc;
   }, { critical: 0, high: 0, medium: 0, low: 0 });
 
+  // codeQualityScore is never computed by the pipeline, so averaging it
+  // produced a constant 0 presented as a quality figure. Report the real
+  // measured values and say plainly that quality is not measured.
+  const measuredQuality = scans.map((scan) => scan.codeQualityScore).filter((value) => Number.isFinite(value));
+
   res.json({
     analytics,
     totals: {
       scans: scans.length,
-      latestRisk: latest?.riskScore || 0,
-      avgQuality: scans.length ? Math.round(scans.reduce((sum, scan) => sum + scan.codeQualityScore, 0) / scans.length) : 0
+      latestRisk: latest?.riskScore ?? null,
+      latestRiskLevel: latest?.riskLevel || null,
+      lastScanAt: latest?.createdAt || null,
+      avgQuality: measuredQuality.length ? Math.round(measuredQuality.reduce((sum, value) => sum + value, 0) / measuredQuality.length) : null,
+      qualityStatus: measuredQuality.length ? "measured" : "not_measured",
+      qualityReason: measuredQuality.length ? undefined : "A code quality score is not computed by the analysis pipeline."
     },
-    severityTotals
+    severityTotals,
+    evaluation: { status: "not_configured", message: "Evaluation benchmark not configured." }
   });
 });

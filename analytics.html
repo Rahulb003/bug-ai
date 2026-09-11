@@ -1,1 +1,48 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Analytics | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="analytics"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script>document.addEventListener("DOMContentLoaded",async()=>{if(!App.requireAuth())return;const root=document.getElementById("workspace-content");try{const data=await App.getAnalytics();root.innerHTML=`<div class="ws-grid cols-3"><div class="ws-card"><span class="ws-muted">Total scans</span><div class="ws-metric">${data.overview?.totalScans??data.totalScans??0}</div></div><div class="ws-card"><span class="ws-muted">Latest risk</span><div class="ws-metric">${data.overview?.latestRisk??"N/A"}</div></div><div class="ws-card"><span class="ws-muted">Evaluation</span><div class="ws-metric">N/A</div><p class="ws-muted">Benchmark not configured.</p></div></div><section class="ws-card" style="margin-top:16px"><h2>Stored analytics</h2><pre class="ws-code">${BugWorkspace.esc(JSON.stringify(data,null,2))}</pre></section>`;}catch(e){root.innerHTML=`<div class="ws-empty">${BugWorkspace.esc(e.message)}</div>`;}});</script></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Analytics | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="analytics"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script src="pages.js"></script><script>
+document.addEventListener("DOMContentLoaded", async () => {
+  if (!App.requireAuth()) return;
+  const root = document.getElementById("workspace-content");
+  const esc = BugWorkspace.esc;
+  root.innerHTML = '<p class="ws-muted">Loading stored analytics…</p>';
+  let data;
+  try { data = await App.api("/analytics"); }
+  catch (error) { root.innerHTML = BugWorkspace.emptyState({ title: "Could not load analytics", body: error.message }); return; }
+
+  const a = data.analytics || {};
+  const totals = data.totals || {};
+  const sev = data.severityTotals || {};
+  const byDay = a.scansByDay || {};
+  const days = Object.keys(byDay).sort();
+  const categories = Object.entries(a.issueCategories || {}).sort((x, y) => y[1] - x[1]);
+  const byType = Object.entries(a.scansByType || {}).sort((x, y) => y[1] - x[1]);
+
+  if (!totals.scans) {
+    root.innerHTML = BugPages.header({ title: "Analytics", subtitle: "Derived from stored scans only" })
+      + BugWorkspace.emptyState({ title: "No analysis data yet", body: "Analytics are built from scans you have actually run. Analyze something in Code Studio and it will appear here.", actionHref: "studio.html", actionLabel: "Open Code Studio" });
+    return;
+  }
+
+  // A plain bar chart over real counts; no smoothing, no projection.
+  const maxDay = Math.max(1, ...days.map((d) => byDay[d]));
+  const chart = days.length
+    ? '<div class="pg-chart">' + days.slice(-30).map((d) => '<div class="pg-bar" title="' + esc(d) + ": " + byDay[d] + ' scan(s)"><i style="height:' + Math.round((byDay[d] / maxDay) * 100) + '%"></i><span>' + esc(d.slice(5)) + "</span></div>").join("") + "</div>"
+    : '<p class="ws-muted">No dated scan history recorded.</p>';
+
+  const maxCat = Math.max(1, ...categories.map(([, n]) => n));
+
+  root.innerHTML = BugPages.header({
+    title: "Analytics",
+    subtitle: "Derived from " + totals.scans + " stored scan(s). No projections, no sampling.",
+    actions: '<a class="ws-button" href="history.html">History</a><a class="ws-button" href="studio.html">Open Studio</a>'
+  })
+  + '<div class="ws-grid cols-3"><div class="ws-card"><span class="ws-muted">Scans recorded</span><div class="ws-metric">' + totals.scans + "</div>" + (totals.lastScanAt ? '<p class="ws-muted">Last ' + esc(new Date(totals.lastScanAt).toLocaleString()) + "</p>" : "") + "</div>"
+  + '<div class="ws-card"><span class="ws-muted">Latest risk prioritisation</span><div class="ws-metric">' + (totals.latestRisk === null ? "—" : totals.latestRisk) + "</div>" + '<p class="ws-muted">' + esc(totals.latestRiskLevel || "No level recorded") + ". Severity-weighted triage, not accuracy.</p></div>"
+  + '<div class="ws-card"><span class="ws-muted">Code quality score</span><div class="ws-metric" style="font-size:17px">' + (totals.qualityStatus === "measured" ? totals.avgQuality : "NOT MEASURED") + '</div><p class="ws-muted">' + esc(totals.qualityReason || "") + "</p></div></div>"
+  + '<section class="ws-card" style="margin-top:16px"><h3>Findings by severity <span class="ws-muted" style="font-weight:400;font-size:12px">across all stored scans</span></h3>'
+  + '<div class="pg-sevbar" style="margin-top:10px"><span class="pg-sevchip critical"><b>' + (sev.critical || 0) + '</b> CRITICAL</span><span class="pg-sevchip high"><b>' + (sev.high || 0) + '</b> HIGH</span><span class="pg-sevchip medium"><b>' + (sev.medium || 0) + '</b> MEDIUM</span><span class="pg-sevchip low"><b>' + (sev.low || 0) + "</b> LOW</span></div></section>"
+  + '<section class="ws-card" style="margin-top:16px"><h3>Scans per day</h3>' + chart + "</section>"
+  + '<section class="ws-card" style="margin-top:16px"><h3>Issue categories</h3>' + (categories.length ? '<table class="ws-table"><thead><tr><th>Category</th><th>Count</th><th></th></tr></thead><tbody>' + categories.map(([c, n]) => "<tr><td>" + esc(c) + "</td><td>" + n + '</td><td><div class="pg-meter"><i style="width:' + Math.round((n / maxCat) * 100) + '%"></i></div></td></tr>').join("") + "</tbody></table>" : '<p class="ws-muted">No categorised findings recorded yet.</p>') + "</section>"
+  + '<section class="ws-card" style="margin-top:16px"><h3>Scans by input type</h3>' + (byType.length ? '<table class="ws-table"><thead><tr><th>Type</th><th>Count</th></tr></thead><tbody>' + byType.map(([t, n]) => "<tr><td>" + esc(t) + "</td><td>" + n + "</td></tr>").join("") + "</tbody></table>" : '<p class="ws-muted">No input types recorded.</p>') + "</section>"
+  + '<section class="ws-card" style="margin-top:16px"><h3>Detection accuracy</h3><p class="ws-muted">' + esc(data.evaluation?.message || "Evaluation benchmark not configured.") + " Precision, recall, F1 and false-positive rates require a labelled benchmark suite, which is not present in this repository.</p></section>";
+});
+</script></body></html>

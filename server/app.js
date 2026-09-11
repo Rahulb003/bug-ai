@@ -32,7 +32,6 @@ app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 app.use(attachRequestContext);
 app.use(securityHeaders);
-app.use(requestRateLimiter);
 app.use(sanitizeBody);
 app.get("/", (req, res) => {
   res.sendFile(path.join(rootDir, "index.html"));
@@ -46,7 +45,7 @@ app.get("/:filename", (req, res, next) => {
   return res.sendFile(path.join(rootDir, filename), { dotfiles: "deny" });
 });
 
-app.use("/api", apiRouter);
+app.use("/api", requestRateLimiter, apiRouter);
 
 app.post("/signup", async (req, res, next) => {
   try {

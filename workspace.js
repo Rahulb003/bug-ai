@@ -55,6 +55,26 @@ const BugWorkspace = (() => {
   let profileCache = null;
   let notificationsCache = [];
 
+  // The shell needs the same profile/projects/notifications on every page. Without
+  // a cache, navigating the sidebar fires three API calls per page and quickly
+  // trips the rate limiter. Short TTLs keep the data fresh enough to be honest.
+  const TTL = { profile: 300000, projects: 60000, notifications: 30000 };
+  function cacheGet(key) {
+    try {
+      const raw = sessionStorage.getItem(`bugai_cache_${key}`);
+      if (!raw) return null;
+      const { at, value } = JSON.parse(raw);
+      if (Date.now() - at > (TTL[key] || 30000)) return null;
+      return value;
+    } catch { return null; }
+  }
+  function cacheSet(key, value) {
+    try { sessionStorage.setItem(`bugai_cache_${key}`, JSON.stringify({ at: Date.now(), value })); } catch { /* private mode */ }
+  }
+  function cacheClear(key) {
+    try { key ? sessionStorage.removeItem(`bugai_cache_${key}`) : ["profile", "projects", "notifications"].forEach((k) => sessionStorage.removeItem(`bugai_cache_${k}`)); } catch { /* ignore */ }
+  }
+
   function renderShell() {
     const root = document.getElementById("workspace-shell"); if (!root) return;
     root.classList.add("ws-shell"); // workspace.css defines the sidebar/main grid on this class.
@@ -163,7 +183,9 @@ const BugWorkspace = (() => {
 
   async function loadProfile() {
     if (profileCache) return profileCache;
-    try { profileCache = (await App.api("/auth/me")).user || null; } catch { profileCache = null; }
+    const cached = cacheGet("profile");
+    if (cached) profileCache = cached;
+    else { try { profileCache = (await App.api("/auth/me")).user || null; cacheSet("profile", profileCache); } catch { profileCache = null; } }
     const initials = profileCache ? initialsOf(profileCache.username, profileCache.email) : "?";
     const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
     set("ws-profile-name", profileCache?.username || "Not signed in");
@@ -174,7 +196,10 @@ const BugWorkspace = (() => {
   }
 
   async function loadProjectsCached(force) {
-    if (!projectsCache.length || force) { try { projectsCache = (await App.api("/projects")).projects || []; } catch { projectsCache = []; } }
+    if (projectsCache.length && !force) return projectsCache;
+    const cached = !force && cacheGet("projects");
+    if (cached) { projectsCache = cached; return projectsCache; }
+    try { projectsCache = (await App.api("/projects")).projects || []; cacheSet("projects", projectsCache); } catch { projectsCache = []; }
     return projectsCache;
   }
 
@@ -202,7 +227,9 @@ const BugWorkspace = (() => {
   }
 
   async function refreshNotificationBadge() {
-    try { notificationsCache = (await App.api("/notifications")).notifications || []; } catch { notificationsCache = []; }
+    const cached = cacheGet("notifications");
+    if (cached) notificationsCache = cached;
+    else { try { notificationsCache = (await App.api("/notifications")).notifications || []; cacheSet("notifications", notificationsCache); } catch { notificationsCache = []; } }
     const unread = notificationsCache.filter((n) => !n.read).length;
     const badge = document.getElementById("ws-bell-badge");
     if (badge) { badge.textContent = String(unread); badge.hidden = unread === 0; }
@@ -214,7 +241,7 @@ const BugWorkspace = (() => {
       ? notificationsCache.slice(0, 10).map((n) => `<button type="button" class="ws-note ${n.read ? "" : "unread"}" data-note="${esc(n.id)}"><b>${esc(n.title)}</b><span>${esc(n.message)}</span><small>${new Date(n.createdAt).toLocaleString()}</small></button>`).join("")
       : `<div class="ws-menu-empty">Nothing yet. Notifications appear when a scan completes.</div>`);
     menu.querySelectorAll("[data-note]").forEach((button) => button.addEventListener("click", async () => {
-      try { await App.api(`/notifications/${button.dataset.note}/read`, { method: "POST" }); } catch { /* surfaced by the online pill */ }
+      try { await App.api(`/notifications/${button.dataset.note}/read`, { method: "POST" }); cacheClear("notifications"); } catch { /* surfaced by the online pill */ }
       button.classList.remove("unread");
       await refreshNotificationBadge();
     }));
@@ -296,7 +323,7 @@ const BugWorkspace = (() => {
   async function loadProjects() { return (await App.api("/projects")).projects || []; }
   function requireScan(target) { const scan = currentScan(); if (!scan) { target.innerHTML = `<div class="ws-empty"><h2>No active analysis</h2><p>Open Code Studio, analyze code, then return here.</p><a class="ws-button primary" href="studio.html">Open Code Studio</a></div>`; return null; } return scan; }
 
-  return { renderShell, setContext, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
+  return { renderShell, setContext, cacheClear, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
 })();
 window.BugWorkspace = BugWorkspace;
 document.addEventListener("DOMContentLoaded", () => { BugWorkspace.renderShell(); });
