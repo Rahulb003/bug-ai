@@ -43,6 +43,8 @@ What BUG AI does **not** do, as of `v0.4`. Everything here is deliberate scope o
 - **Sidebar navigation keeps 6 groups** (Main, Analyze, Understand, Development, Insights, System). Technical Debt is not in the sidebar; it is reached from Dashboard, Analytics and the Projects detail card.
 - **Settings has no server-side profile editing.** Password change, profile updates and per-user AI budgets have no endpoint, so the page does not offer them. Preferences (editor, analysis, notifications) are stored per browser in `localStorage`, not per account.
 - **The startup animation is cosmetic and skippable.** It plays once per browser session (`sessionStorage`), collapses under `prefers-reduced-motion`, and never gates a real loading step.
+- **The command palette searches client-side state only.** Files come from the project open in Studio (`window.BugStudioFiles`) and findings from the current scan; there is no server-side full-text search of code, and no fuzzy matching beyond prefix/substring.
+- **Only one icon set.** Icons are inline stroke SVGs defined in `workspace.js`; adding a page means adding an icon there. No icon library is bundled.
 - **Monaco loads from a CDN.** Code Studio requires network access on load; offline, the editor reports that it could not load.
 - **`UTF-8` and `LF` in the status bar are fixed defaults**, not detected.
 - **Explorer "new folder" creates an untitled file inside it**, because folders exist only as path prefixes of stored files.

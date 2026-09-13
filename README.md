@@ -67,6 +67,12 @@ This is **process-level isolation, not container or OS-level sandboxing**, and i
 
 See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for what remains out of scope.
 
+## Design system
+
+The interface follows one token set in [design.css](design.css): layered neutral surfaces (app → sidebar → surface → elevated → popover), three text tiers, structural low-contrast borders, a single selective accent, semantic severity colours, a 4–48px spacing scale, Inter for UI and JetBrains Mono for code, with a light theme. Every page consumes the same primitives from [workspace.css](workspace.css) (`.ws-button`, `.ws-input`, `.ws-table`, `.ws-badge`, `.ws-empty`, `.pg-*` scaffolding, `.db-stats`) and the shared shell in [workspace.js](workspace.js) (sidebar, header, project switcher, notifications, breadcrumb, command palette). Colour marks meaning — active state, severity, success/warning/danger, AI-sourced content — never decoration.
+
+**Command palette** (Ctrl/⌘ K) lists only real actions: navigation, *Analyze project* (calls the API), *Open current analysis in Studio*, files of the open project, findings of the current scan, theme/sidebar toggles and log out. Pages can register their own commands with `BugWorkspace.registerCommands`; Code Studio registers Analyze, Fix All, Fix & Verify All, Optimize, Generate Tests, Explain and Save.
+
 ## Architecture
 
 `server/services/engine/` contains the active pipeline:
