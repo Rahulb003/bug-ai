@@ -1,6 +1,6 @@
 # Known limitations
 
-What BUG AI does **not** do, as of `v0.3`. Everything here is deliberate scope or a measured constraint, not an undiscovered bug. See [README.md](README.md) for what is implemented.
+What BUG AI does **not** do, as of `v0.4`. Everything here is deliberate scope or a measured constraint, not an undiscovered bug. See [README.md](README.md) for what is implemented.
 
 ## Analysis
 
@@ -17,7 +17,10 @@ What BUG AI does **not** do, as of `v0.3`. Everything here is deliberate scope o
 - **No AI-specific rate limit, spend cap or retry.** The four AI endpoints plus the assistant share the 120 requests/minute IP limiter, which caps request rate, not spend. There is no retry on a transient `429`/`503`; the request degrades to its fallback immediately. A per-user AI budget and one bounded retry are both recommended; neither is implemented.
 - **Model IDs are pinned in code.** Every AI module requests `GEMINI_MODEL` (default `gemini-3.6-flash`). Google retires model IDs without notice — `gemini-2.0-flash` began returning HTTP 404 during this work — so set `GEMINI_MODEL` rather than editing sources when it happens again.
 - **Assistant retrieval is filename keyword matching**, not embeddings. A question whose wording shares no stem with any filename retrieves no file contents and is answered from the project index alone.
-- **Code translation, documentation generation, technical-debt scoring and runtime performance profiling are not implemented.** Performance findings are static pattern risks (nested loops, repeated work), never measurements.
+- **Code translation is never proven equivalent.** `POST /translate` returns the model's translation with a static check of the *target* code and `equivalence.status: "not_verified"`; nothing runs the two versions against each other. It lands in the Optimizer as ordinary hunks so it is reviewed line by line before it replaces the working copy.
+- **Generated documentation covers at most 8 files × 6000 characters** (manifests and entry-point-looking files first). The response names the files that were sent and the gaps the model declared; treat everything else as undocumented rather than described.
+- **Technical debt is a grouping of stored findings, not a measurement.** Items are findings grouped by rule with a priority mapped from severity; there are no effort, time or cost estimates, and the trend is only reported when a previous analysis of the same project is stored (one is kept). It is not a maintainability index.
+- **Runtime performance profiling is not implemented.** Performance findings are static pattern risks (nested loops, repeated work), never measurements.
 
 ## Execution and tests
 
@@ -33,11 +36,13 @@ What BUG AI does **not** do, as of `v0.3`. Everything here is deliberate scope o
 - **GitHub is read-only.** Public repositories only, default branch only. No branches, diffs, commit history, commits, pushes or pull requests.
 - **ZIP import drops binaries and enforces 15 MB / 2000 entries / 2 MB per entry.** Absolute paths are normalised to relative (safe, since project files are stored as records); `..` segments and drive prefixes are dropped. Dropped entries are counted and reported.
 - **No per-file delete.** `PUT /projects/:id/files` creates or overwrites; only whole-project deletion exists. Studio's delete icon closes the tab and says so.
-- **`data/db.json` is a JSON file, not a database.** No concurrency control, migrations or indexing.
+- **`data/db.json` is a JSON file, not a database.** Writes are atomic (temp file + rename) and read-modify-write runs on a single queue, so concurrent requests no longer see a half-written file or overwrite each other; there is still no locking across processes, no migrations and no indexing. Run one server instance per database file.
 
 ## Interface
 
-- **Sidebar navigation keeps 6 groups** (Main, Analyze, Understand, Development, Insights, Settings); the 4-group proposal was not adopted because nothing else references group names.
+- **Sidebar navigation keeps 6 groups** (Main, Analyze, Understand, Development, Insights, System). Technical Debt is not in the sidebar; it is reached from Dashboard, Analytics and the Projects detail card.
+- **Settings has no server-side profile editing.** Password change, profile updates and per-user AI budgets have no endpoint, so the page does not offer them. Preferences (editor, analysis, notifications) are stored per browser in `localStorage`, not per account.
+- **The startup animation is cosmetic and skippable.** It plays once per browser session (`sessionStorage`), collapses under `prefers-reduced-motion`, and never gates a real loading step.
 - **Monaco loads from a CDN.** Code Studio requires network access on load; offline, the editor reports that it could not load.
 - **`UTF-8` and `LF` in the status bar are fixed defaults**, not detected.
 - **Explorer "new folder" creates an untitled file inside it**, because folders exist only as path prefixes of stored files.
@@ -45,4 +50,5 @@ What BUG AI does **not** do, as of `v0.3`. Everything here is deliberate scope o
 ## Operational
 
 - **The bundled Gemini API key should be treated as compromised, and its free tier is small.** `.env` was present in a zip export of this project; it is gitignored, but rotate it. The free tier allows **20 requests per day per model** (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`), which a single session of manual testing exhausts. Every AI feature then degrades to its documented fallback.
-- **`JWT_SECRET` falls back to a hardcoded dev value** (`bugzero-dev-secret`) when unset. Fine locally; set it anywhere else.
+- **`JWT_SECRET` falls back to a hardcoded dev value** (`bugzero-dev-secret`) when unset. Fine locally; set it anywhere else. `GET /system/capabilities` reports `jwtSecretConfigured: false` while the fallback is in use.
+- **The former `POST /auth/google` endpoint was removed, not fixed.** It issued a session for any submitted e-mail without verifying anything, which was an authentication bypass. Google sign-in now needs a real OAuth implementation before it can return.

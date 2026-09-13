@@ -25,7 +25,10 @@ Open `http://127.0.0.1:8080`, then sign in and open `Code Studio`. Run the autom
 - `tests.html` — generated test code and available verification results; generated tests are never written into your project.
 - `architecture.html`, `dependencies.html` — static project structure and import/manifest metadata.
 - `assistant.html` — project-aware assistant. With a project selected and a key configured it answers from a lightweight index of stored project metadata plus up to three name-matched files, and lists the files it referenced; otherwise it falls back to the rule-based reply. Each answer is tagged `ai` or `rule-based`.
-- `git.html`, `analytics.html`, `settings.html` — CI template, stored analytics, and local-workspace settings views.
+- `debt.html` — technical debt derived from a project's stored analyses: findings grouped by rule with severity-mapped priority, affected files linked into Studio, and a trend only when a previous analysis exists. No effort or cost estimates.
+- `git.html`, `analytics.html` — CI template and stored analytics.
+- `settings.html` — profile, the AI / sandbox / test-runner capabilities the server actually reports (`GET /api/system/capabilities`, key shown only as a masked hint), editor and analysis preferences that Studio honours, and workspace-state reset.
+- `dashboard.html` — real counts from the latest scan and active project; code quality, complexity and debt scores are shown as NOT MEASURED because nothing computes them.
 
 Current project, selected file, and latest scan persist in browser local storage while the project data itself persists in the server database.
 
@@ -39,6 +42,9 @@ Every AI-backed action is a **proposal that has never been executed**. Nothing i
 | Optimize (`POST /api/optimize`) | Transformed code plus `optimizedVerification`, a fresh static check of the proposal | `optimizedCode` equals the input, `changes` is empty, and the note says no transformation was produced |
 | Generate tests (`POST /api/test/generate`) | `generated`: runnable test bodies with assertions | `plan_only`: names and intents only, never fabricated code. `not_available` when the language has no configured test runner, and no AI call is made |
 | Assistant (`POST /api/assistant/chat`) | `source: "ai"`: answers from a project index plus up to three name-matched files, listing the files it referenced | `source: "rule-based"`: scan-grounded keyword answers, the pre-AI behaviour |
+| Explain (`POST /api/explain`) | Six modes: beginner, technical, line-by-line, architecture, performance, security | `not_configured` / `unavailable`; nothing is paraphrased locally |
+| Translate (`POST /api/translate`) | Target-language code plus a static check of it and `equivalence: not_verified`; shown in the Optimizer as reviewable hunks | `not_configured` / `unavailable`; unsupported targets are `not_available` before any call |
+| Documentation (`POST /api/docs`) | README / API / function / architecture markdown from at most 8 files, with the files sent and the gaps the model declared | `not_configured` / `unavailable`; an empty file list is `not_available` |
 
 The AI reasoning step of `/api/scan` is separate and optional; deterministic findings are always produced regardless.
 
@@ -69,10 +75,11 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for what remains out of scope.
 - `projectAnalyzer.js`, `dependencyAnalyzer.js`, and `architectureAnalyzer.js` preserve project file boundaries, detect manifests/tests/import relationships, and ignore dependency/generated directories.
 - `analyzers/` produces evidence-backed deterministic findings, split by category (`syntaxAnalyzer.js`, `runtimeAnalyzer.js`, `securityAnalyzer.js`, `performanceAnalyzer.js`, `qualityAnalyzer.js`) over shared helpers in `shared.js`.
 - `analyzers/ast/jsAstAnalyzer.js` replaces the regex security and runtime rules for JavaScript and TypeScript with a real `@babel/parser` AST, matching node shapes instead of source text. This removes false positives the regex rules could not avoid (a `pattern.exec()` call or a method named `system()` were reported as code execution and command injection) and adds `BUGAI-RUN-004`, assignment used as a condition, which text matching cannot see. A parse failure falls back to the regex/syntax path for that file rather than dropping findings. Every other language stays on the regex analyzers.
-- `ai/` supplies optional, structured AI output without treating source content as instructions: `aiAnalyzer.js` (potential findings), `aiFixer.js` (patch proposals), `aiOptimizer.js` (optimizations), and `aiTestGenerator.js` (test code). Each degrades to a labelled "not available" result when no key is configured, the API fails, or the response is malformed.
+- `ai/` supplies optional, structured AI output without treating source content as instructions: `aiAnalyzer.js` (potential findings), `aiFixer.js` (patch proposals), `aiOptimizer.js` (optimizations), `aiTestGenerator.js` (test code), `aiExplainer.js` (six explain modes), `aiAssistant.js` (project-aware chat), `aiTranslator.js` (translation proposals) and `aiDocs.js` (documentation). Each degrades to a labelled "not available" result when no key is configured, the API fails, or the response is malformed.
+- `debtAnalyzer.js` groups a project's stored findings into technical-debt items and compares them with the previous stored analysis; `repairPipeline.js` is the Fix & Verify All loop.
 - `verification/` reports only checks that actually run. User code is never executed in the Node API process.
 
-Projects are stored compatibly beside existing `db.json` records under a `projects` collection.
+Projects are stored compatibly beside existing `db.json` records under a `projects` collection. Database writes are atomic (temp file + rename) and read-modify-write operations are serialised on one queue.
 
 ## Language coverage
 
@@ -80,7 +87,7 @@ AST-based rules: JavaScript and TypeScript only. Regex static-rule coverage: Pyt
 
 ## API
 
-Authenticated endpoints include `POST /api/scan`, `/api/analyze`, `/api/project/analyze`, `/api/scan-github`, `/api/fix`, `/api/optimize`, `/api/test/generate`, and `/api/verify`. Project APIs are `GET/POST /api/projects`, `GET/PATCH/DELETE /api/projects/:id`, `GET /api/projects/:id/files`, `PUT /api/projects/:id/files`, `POST /api/projects/:id/analyze`, plus `/dependencies` and `/architecture`. Stored reports are available at `GET /api/scans/:id`, `/findings`, and `/verification`. Existing `/api/scan-code` and `/api/upload-project` endpoints remain supported.
+Authenticated endpoints include `POST /api/scan`, `/api/analyze`, `/api/project/analyze`, `/api/scan-github`, `/api/fix`, `/api/optimize`, `/api/test/generate`, and `/api/verify`. Project APIs are `GET/POST /api/projects`, `GET/PATCH/DELETE /api/projects/:id`, `GET /api/projects/:id/files`, `PUT /api/projects/:id/files`, `POST /api/projects/:id/analyze`, plus `/dependencies` and `/architecture`. Stored reports are available at `GET /api/scans/:id`, `/findings`, and `/verification`; `POST /api/scans/:id/findings/:findingId/status` records triage (`open`, `reviewed`, `ignored`). `GET /api/projects/:id/debt` derives technical debt, `POST /api/translate` and `POST /api/docs` are the translation and documentation proposals, and `GET /api/system/capabilities` reports what this server can actually do. Existing `/api/scan-code` and `/api/upload-project` endpoints remain supported.
 
 ## Verification and security limits
 
