@@ -123,6 +123,7 @@ const BugWorkspace = (() => {
       </main>`;
     renderContext();
     wireTopbar();
+    if (page === "dashboard" && window.BugMotion) BugMotion.boot({ short: true });
   }
 
   // --- topbar behaviour -----------------------------------------------------

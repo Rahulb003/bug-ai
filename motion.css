@@ -1,0 +1,79 @@
+/* BUG AI motion system. One place for every transition; pages opt in with
+   classes rather than inventing their own. Everything collapses to instant
+   under prefers-reduced-motion. */
+:root {
+  --m-fast: 140ms;
+  --m-base: 180ms;
+  --m-slow: 260ms;
+  --m-ease: cubic-bezier(.2, .7, .2, 1);
+  --m-out: cubic-bezier(.4, 0, 1, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --m-fast: 0ms; --m-base: 0ms; --m-slow: 0ms; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}
+
+/* ---- page content transition (only the main content area moves) ---------- */
+.ws-content { animation: m-page-in var(--m-base) var(--m-ease) both; }
+body.m-leaving .ws-content { animation: m-page-out var(--m-fast) var(--m-out) both; }
+@keyframes m-page-in  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes m-page-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-4px); } }
+
+/* ---- reusable reveals ------------------------------------------------------ */
+.m-fade-in  { animation: m-fade var(--m-base) var(--m-ease) both; }
+.m-rise     { animation: m-rise var(--m-base) var(--m-ease) both; }
+.m-scale-in { animation: m-scale var(--m-base) var(--m-ease) both; }
+@keyframes m-fade  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes m-rise  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes m-scale { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+
+/* Staggered list reveal: parent gets .m-stagger, children animate in order. */
+.m-stagger > * { animation: m-rise var(--m-base) var(--m-ease) both; }
+.m-stagger > *:nth-child(1)  { animation-delay: 0ms; }
+.m-stagger > *:nth-child(2)  { animation-delay: 30ms; }
+.m-stagger > *:nth-child(3)  { animation-delay: 60ms; }
+.m-stagger > *:nth-child(4)  { animation-delay: 90ms; }
+.m-stagger > *:nth-child(5)  { animation-delay: 120ms; }
+.m-stagger > *:nth-child(6)  { animation-delay: 150ms; }
+.m-stagger > *:nth-child(n+7) { animation-delay: 180ms; }
+
+/* ---- one-shot highlight for a discovered / changed line (no pulsing) ------ */
+.m-flash { animation: m-flash 900ms var(--m-ease) 1; }
+@keyframes m-flash { 0% { background: color-mix(in srgb, var(--ws-brand) 28%, transparent); } 100% { background: transparent; } }
+
+/* ---- scan beam: shown only while a real request is in flight -------------- */
+.m-scanning { position: relative; overflow: hidden; }
+.m-scanning::after { content: ""; position: absolute; inset: 0 auto 0 -40%; width: 40%; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ws-brand) 22%, transparent), transparent); animation: m-beam 1.1s linear infinite; pointer-events: none; }
+@keyframes m-beam { to { left: 100%; } }
+
+/* ---- status pill transitions ---------------------------------------------- */
+.m-status { display: inline-flex; align-items: center; gap: 6px; transition: color var(--m-fast) var(--m-ease), background var(--m-fast) var(--m-ease); }
+.m-status .m-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.m-status.is-busy .m-dot { animation: m-breathe 1.2s var(--m-ease) infinite; }
+@keyframes m-breathe { 50% { opacity: .35; } }
+
+/* ---- interaction polish (subtle, no bounce) -------------------------------- */
+.ws-button, .ws-icon-button, .st-tool, .op-tab, .st-bt, .st-rt, .tree-row, .ws-nav a { transition: background var(--m-fast) var(--m-ease), color var(--m-fast) var(--m-ease), border-color var(--m-fast) var(--m-ease), opacity var(--m-fast) var(--m-ease); }
+.ws-button:active { transform: translateY(1px); }
+.ws-menu { animation: m-scale var(--m-fast) var(--m-ease) both; transform-origin: top right; }
+#ws-project-menu { transform-origin: top left; }
+.st-bottom, .op-hunk, .fcard, .rp-mod { animation: m-fade var(--m-base) var(--m-ease) both; }
+.tree-row { animation: m-fade var(--m-fast) var(--m-ease) both; }
+:focus-visible { outline: 2px solid var(--ws-brand); outline-offset: 2px; border-radius: 6px; }
+
+/* ---- toast ------------------------------------------------------------------ */
+.toast, .ws-toast { animation: m-toast-in var(--m-slow) var(--m-ease) both; }
+@keyframes m-toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ---- startup ------------------------------------------------------------------ */
+.boot { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #0b1220; color: #eef3ff; overflow: hidden; }
+.boot.is-done { pointer-events: none; animation: m-fade var(--m-slow) var(--m-out) reverse both; }
+.boot-mark { display: grid; place-items: center; gap: 12px; text-align: center; animation: m-scale 420ms var(--m-ease) both; }
+.boot-mark b { font-size: clamp(44px, 8vw, 84px); letter-spacing: .06em; font-weight: 800; line-height: 1; }
+.boot-mark small { font-size: clamp(11px, 1.4vw, 14px); letter-spacing: .28em; color: #8fa3c7; font-weight: 700; opacity: 0; animation: m-fade 380ms var(--m-ease) 420ms both; }
+.boot-beam { position: absolute; left: 0; right: 0; height: 2px; top: 50%; background: linear-gradient(90deg, transparent, #70a5ff, transparent); opacity: 0; animation: m-boot-beam 520ms var(--m-ease) 640ms both; }
+@keyframes m-boot-beam { 0% { opacity: 0; transform: translateY(-40px) scaleX(.2); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(40px) scaleX(1); } }
+.boot.is-settling .boot-mark { animation: m-boot-settle 460ms var(--m-ease) both; }
+@keyframes m-boot-settle { to { transform: translate(var(--boot-dx, 0px), var(--boot-dy, 0px)) scale(var(--boot-scale, .4)); opacity: 0; } }
+.boot-skip { position: absolute; right: 18px; bottom: 16px; border: 1px solid #243250; background: transparent; color: #8fa3c7; border-radius: 8px; padding: 7px 12px; cursor: pointer; font: inherit; font-size: 12px; }
+.boot-skip:hover { color: #eef3ff; }

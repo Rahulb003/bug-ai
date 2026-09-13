@@ -385,6 +385,7 @@ const App = (() => {
     getComments,
     addComment,
     askAssistant,
+    isAuthenticated: isAuthed,
     getDevopsTemplates,
     requireAuth,
     saveSession,

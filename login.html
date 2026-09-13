@@ -1,108 +1,40 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login | BugZero AI</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body class="auth-page">
-  <div class="topbar">
-    <div class="topbar-inner">
-      <a href="index.html" class="brand-lockup">
-        <div class="brand-mark">BZ</div>
-        <div>
-          <div>BugZero AI</div>
-          <span class="brand-subtitle">Predictive engineering</span>
-        </div>
-      </a>
-      <div class="nav-actions">
-        <button class="theme-toggle" data-theme-toggle type="button">Theme</button>
-        <a class="btn btn-secondary" href="signup.html">Create account</a>
-      </div>
-    </div>
-  </div>
-
-  <main class="auth-shell">
-    <section class="auth-showcase glass reveal">
-      <span class="eyebrow">Secure access</span>
-      <h1 style="font-size:3.2rem;">Welcome back to your release control center.</h1>
-      <p>Track repository scans, review risk deltas, export reports, and keep your team ahead of failures before they reach production.</p>
-      <ul class="check-list">
-        <li>Persistent scan history</li>
-        <li>Shareable bug reports</li>
-        <li>Admin analytics for team usage</li>
-      </ul>
-    </section>
-    <section class="auth-card glass reveal">
-      <div class="section-head" style="margin-bottom:22px;">
-        <span class="eyebrow">Login</span>
-        <h2>Access your BugZero workspace</h2>
-      </div>
-      <div id="server-status" class="panel" style="padding:16px;margin-bottom:18px;">
-        <p>Checking backend connection...</p>
-      </div>
-      <form id="login-form">
-        <div class="field">
-          <label for="username">Username or email</label>
-          <input id="username" name="username" placeholder="bugzero_admin">
-        </div>
-        <div class="field">
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" placeholder="Enter your password">
-        </div>
-        <button class="btn btn-primary" type="submit">Login to dashboard</button>
-        <button class="btn btn-secondary" type="button" id="google-login">Continue with Google</button>
-      </form>
-      <p style="margin-top:16px;">No account yet? <a href="signup.html" style="color:var(--primary);font-weight:700;">Create one now</a>.</p>
-    </section>
-  </main>
-
-  <script src="ui.js?v=20260429"></script>
-  <script>
-    (async function checkConnection() {
-      const ok = await App.checkServerConnection();
-      document.getElementById("server-status").innerHTML = ok
-        ? "<p><strong>Server connected.</strong> Login is available.</p>"
-        : "<p><strong>Backend not reachable.</strong> Start the app server with <code>npm start</code>, then refresh this page. If you opened the HTML directly, the page will try <code>http://127.0.0.1:8080</code>.</p>";
-    })();
-
-    document.getElementById("login-form").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        const session = await App.api("/auth/login", {
-          method: "POST",
-          body: {
-            username: document.getElementById("username").value,
-            password: document.getElementById("password").value
-          }
-        });
-        App.saveSession(session);
-        App.showToast("Authenticated successfully.");
-        window.location.href = "dashboard.html";
-      } catch (error) {
-        App.showToast(error.message, "error", "Login failed");
-      }
-    });
-
-    document.getElementById("google-login").addEventListener("click", async () => {
-      const email = prompt("Enter your Google email for demo login:");
-      if (!email) return;
-      try {
-        const session = await App.api("/auth/google", {
-          method: "POST",
-          body: {
-            email,
-            name: email.split("@")[0]
-          }
-        });
-        App.saveSession(session);
-        App.showToast("Google session created.");
-        window.location.href = "dashboard.html";
-      } catch (error) {
-        App.showToast(error.message, "error", "Google login failed");
-      }
-    });
-  </script>
-</body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in | BUG AI</title><link rel="icon" href="favicon.svg"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"><link rel="stylesheet" href="motion.css"><link rel="stylesheet" href="auth.css"></head><body class="auth-page"><div class="auth-bg"></div>
+<div class="auth-wrap">
+  <header class="auth-top">
+    <a class="auth-brand" href="index.html"><span class="ws-brand-mark" id="brand-mark"></span><span><b>BUG AI</b><small>Code Smarter. Build Safer.</small></span></a>
+    <nav class="auth-nav"><a class="ws-button" href="signup.html">Create account</a></nav>
+  </header>
+  <section class="ws-card auth-card m-rise">
+    <h2>Sign in</h2>
+    <p>Continue to your projects and scans.</p>
+    <form id="login-form" autocomplete="on">
+      <label for="username">Username or email</label>
+      <input class="ws-input" id="username" name="username" autocomplete="username" required>
+      <label for="password">Password</label>
+      <input class="ws-input" id="password" name="password" type="password" autocomplete="current-password" required>
+      <button class="ws-button primary" id="login-btn" type="submit">Sign in</button>
+    </form>
+    <div class="auth-status" id="server-status"></div>
+    <p class="alt">New here? <a href="signup.html">Create an account</a></p>
+  </section>
+</div>
+<script src="ui.js"></script><script src="workspace.js"></script><script src="motion.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  document.getElementById("brand-mark").innerHTML = BugWorkspace.icon("bot");
+  if (App.isAuthenticated()) { location.replace("dashboard.html"); return; }
+  const status = document.getElementById("server-status");
+  const ok = await App.checkServerConnection();
+  status.textContent = ok ? "" : "Backend not reachable. Start the server with npm start, then refresh.";
+  status.classList.toggle("bad", !ok);
+  document.getElementById("login-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const btn = document.getElementById("login-btn");
+    try {
+      await BugMotion.busy(btn, App.api("/auth/login", { method: "POST", body: { username: document.getElementById("username").value, password: document.getElementById("password").value } }).then((session) => { App.saveSession(session); }), { busyLabel: "Signing in…", doneLabel: "✓ Signed in", holdMs: 300 });
+      try { sessionStorage.removeItem("bugai_booted"); } catch { /* ignore */ }
+      location.href = "dashboard.html";
+    } catch (error) { status.textContent = error.message; status.classList.add("bad"); }
+  });
+});
+</script></body></html>

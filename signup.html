@@ -1,100 +1,42 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Create Account | BugZero AI</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body class="auth-page">
-  <div class="topbar">
-    <div class="topbar-inner">
-      <a href="index.html" class="brand-lockup">
-        <div class="brand-mark">BZ</div>
-        <div>
-          <div>BugZero AI</div>
-          <span class="brand-subtitle">Predictive engineering</span>
-        </div>
-      </a>
-      <div class="nav-actions">
-        <button class="theme-toggle" data-theme-toggle type="button">Theme</button>
-        <a class="btn btn-secondary" href="login.html">Login</a>
-      </div>
-    </div>
-  </div>
-
-  <main class="auth-shell">
-    <section class="auth-showcase glass reveal">
-      <span class="eyebrow">Start building</span>
-      <h1 style="font-size:3.2rem;">Create a premium AI bug prediction workspace for your codebase.</h1>
-      <p>Launch with code scans, repo analysis, share links, PDF exports, and a cleaner path to production readiness.</p>
-      <div class="feature-grid" style="grid-template-columns:1fr 1fr;">
-        <div class="feature-card glass">
-          <div class="feature-icon">A1</div>
-          <h3>Project upload</h3>
-          <p>Drop mixed-language source and scan it instantly.</p>
-        </div>
-        <div class="feature-card glass">
-          <div class="feature-icon">A2</div>
-          <h3>Team analytics</h3>
-          <p>Track user activity, total scans, and top recurring bugs.</p>
-        </div>
-      </div>
-    </section>
-    <section class="auth-card glass reveal">
-      <div class="section-head" style="margin-bottom:22px;">
-        <span class="eyebrow">Register</span>
-        <h2>Set up your account</h2>
-      </div>
-      <div id="server-status" class="panel" style="padding:16px;margin-bottom:18px;">
-        <p>Checking backend connection...</p>
-      </div>
-      <form id="signup-form">
-        <div class="field">
-          <label for="username">Username</label>
-          <input id="username" name="username" placeholder="Choose a username">
-        </div>
-        <div class="field">
-          <label for="email">Email</label>
-          <input id="email" name="email" placeholder="you@example.com">
-        </div>
-        <div class="field">
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" placeholder="Minimum 6 characters">
-        </div>
-        <button class="btn btn-primary" type="submit">Create account</button>
-      </form>
-      <p style="margin-top:16px;">Already registered? <a href="login.html" style="color:var(--primary);font-weight:700;">Login here</a>.</p>
-    </section>
-  </main>
-
-  <script src="ui.js?v=20260429"></script>
-  <script>
-    (async function checkConnection() {
-      const ok = await App.checkServerConnection();
-      document.getElementById("server-status").innerHTML = ok
-        ? "<p><strong>Server connected.</strong> You can create an account now.</p>"
-        : "<p><strong>Backend not reachable.</strong> Start the app server with <code>npm start</code>, then refresh this page. If you opened the HTML directly, the page will try <code>http://127.0.0.1:8080</code>.</p>";
-    })();
-
-    document.getElementById("signup-form").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        const session = await App.api("/auth/register", {
-          method: "POST",
-          body: {
-            username: document.getElementById("username").value,
-            email: document.getElementById("email").value,
-            password: document.getElementById("password").value
-          }
-        });
-        App.saveSession(session);
-        App.showToast("Account created successfully.");
-        window.location.href = "dashboard.html";
-      } catch (error) {
-        App.showToast(error.message, "error", "Registration failed");
-      }
-    });
-  </script>
-</body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Create account | BUG AI</title><link rel="icon" href="favicon.svg"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"><link rel="stylesheet" href="motion.css"><link rel="stylesheet" href="auth.css"></head><body class="auth-page"><div class="auth-bg"></div>
+<div class="auth-wrap">
+  <header class="auth-top">
+    <a class="auth-brand" href="index.html"><span class="ws-brand-mark" id="brand-mark"></span><span><b>BUG AI</b><small>Code Smarter. Build Safer.</small></span></a>
+    <nav class="auth-nav"><a class="ws-button" href="login.html">Sign in</a></nav>
+  </header>
+  <section class="ws-card auth-card m-rise">
+    <h2>Create your account</h2>
+    <p>Projects, scans and history are stored under this account.</p>
+    <form id="signup-form" autocomplete="on">
+      <label for="username">Username</label>
+      <input class="ws-input" id="username" name="username" autocomplete="username" minlength="3" required>
+      <label for="email">Email</label>
+      <input class="ws-input" id="email" name="email" type="email" autocomplete="email" required>
+      <label for="password">Password</label>
+      <input class="ws-input" id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+      <button class="ws-button primary" id="signup-btn" type="submit">Create account</button>
+    </form>
+    <div class="auth-status" id="server-status"></div>
+    <p class="alt">Already have an account? <a href="login.html">Sign in</a></p>
+  </section>
+</div>
+<script src="ui.js"></script><script src="workspace.js"></script><script src="motion.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  document.getElementById("brand-mark").innerHTML = BugWorkspace.icon("bot");
+  if (App.isAuthenticated()) { location.replace("dashboard.html"); return; }
+  const status = document.getElementById("server-status");
+  const ok = await App.checkServerConnection();
+  status.textContent = ok ? "" : "Backend not reachable. Start the server with npm start, then refresh.";
+  status.classList.toggle("bad", !ok);
+  document.getElementById("signup-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const btn = document.getElementById("signup-btn");
+    try {
+      await BugMotion.busy(btn, App.api("/auth/register", { method: "POST", body: { username: document.getElementById("username").value, email: document.getElementById("email").value, password: document.getElementById("password").value } }).then((session) => { App.saveSession(session); }), { busyLabel: "Creating…", doneLabel: "✓ Created", holdMs: 300 });
+      try { sessionStorage.removeItem("bugai_booted"); } catch { /* ignore */ }
+      location.href = "dashboard.html";
+    } catch (error) { status.textContent = error.message; status.classList.add("bad"); }
+  });
+});
+</script></body></html>
