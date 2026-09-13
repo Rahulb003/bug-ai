@@ -33,7 +33,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   root.innerHTML = BugPages.header({
     title: "Analytics",
     subtitle: "Derived from " + totals.scans + " stored scan(s). No projections, no sampling.",
-    actions: '<a class="ws-button" href="history.html">History</a><a class="ws-button" href="studio.html">Open Studio</a>'
+    actions: '<a class="ws-button" href="debt.html">Technical debt</a><a class="ws-button" href="history.html">History</a><a class="ws-button" href="studio.html">Open Studio</a>'
   })
   + '<div class="ws-grid cols-3"><div class="ws-card"><span class="ws-muted">Scans recorded</span><div class="ws-metric">' + totals.scans + "</div>" + (totals.lastScanAt ? '<p class="ws-muted">Last ' + esc(new Date(totals.lastScanAt).toLocaleString()) + "</p>" : "") + "</div>"
   + '<div class="ws-card"><span class="ws-muted">Latest risk prioritisation</span><div class="ws-metric">' + (totals.latestRisk === null ? "—" : totals.latestRisk) + "</div>" + '<p class="ws-muted">' + esc(totals.latestRiskLevel || "No level recorded") + ". Severity-weighted triage, not accuracy.</p></div>"

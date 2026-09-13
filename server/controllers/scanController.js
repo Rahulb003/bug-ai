@@ -10,6 +10,11 @@ import { verifyStatic } from "../services/engine/verification/verificationEngine
 import { runInSandbox } from "../services/engine/verification/sandboxExecutor.js";
 import { explainCode } from "../services/engine/ai/aiExplainer.js";
 import { runGeneratedTests, runnerCapability, discoverProjectTests } from "../services/engine/verification/testRunner.js";
+import { sandboxEnabled } from "../services/engine/verification/sandboxExecutor.js";
+import { EXPLAIN_MODES } from "../services/engine/ai/aiExplainer.js";
+import { translateCode } from "../services/engine/ai/aiTranslator.js";
+import { generateDocs, DOC_KINDS } from "../services/engine/ai/aiDocs.js";
+import { buildProjectIndex } from "../services/workspaceService.js";
 import { requireProject } from "../services/projectService.js";
 import { fixAndVerifyAll } from "../services/engine/repairPipeline.js";
 import { generateTestCode } from "../services/engine/ai/aiTestGenerator.js";
@@ -145,6 +150,42 @@ export const repairController = asyncHandler(async (req, res) => {
   if (!code.trim()) throw createAppError(400, "Code input is required.");
   if (code.length > 200000) throw createAppError(413, "Code input exceeds the 200,000-character analysis limit.");
   res.json(await fixAndVerifyAll({ source: code, language: req.body.language || "auto", sourceName: req.body.filename || "Live snippet", applyAiFixes: req.body.applyAiFixes === true }));
+});
+
+// Reports configuration state for the Settings page. Secrets are never sent:
+// only whether a key exists, and the non-secret model id.
+export const capabilitiesController = asyncHandler(async (req, res) => {
+  const key = String(process.env.GEMINI_API_KEY || "");
+  res.json({
+    ai: { configured: Boolean(key), model: process.env.GEMINI_MODEL || "gemini-3.6-flash", keyHint: key ? `${key.slice(0, 3)}…${key.slice(-2)} (${key.length} chars)` : null, explainModes: EXPLAIN_MODES },
+    sandbox: { enabled: sandboxEnabled(), isolation: "node-permission-model", network: "not restricted", timeoutMs: Number(process.env.EXECUTION_SANDBOX_TIMEOUT_MS) || 5000 },
+    testRunners: { javascript: runnerCapability("javascript"), python: runnerCapability("python") },
+    rateLimit: { perMinute: 120, scope: "per IP, /api only" },
+    jwtSecretConfigured: Boolean(process.env.JWT_SECRET),
+    node: process.version
+  });
+});
+
+export const translateController = asyncHandler(async (req, res) => {
+  const code = String(req.body.code || req.body.source || "");
+  if (!code.trim()) throw createAppError(400, "Code input is required.");
+  if (code.length > 200000) throw createAppError(413, "Code input exceeds the 200,000-character analysis limit.");
+  const from = req.body.from && req.body.from !== "auto" ? req.body.from : (await transientAnalysis({ code, language: "auto", filename: req.body.filename }, { includeAi: false })).language;
+  res.json(await translateCode({ source: code, from, to: req.body.to, sourceName: req.body.filename || "Live snippet" }));
+});
+
+// Docs for a stored project (owner-only) or for a pasted file list.
+export const docsController = asyncHandler(async (req, res) => {
+  const kind = DOC_KINDS.includes(req.body.kind) ? req.body.kind : "readme";
+  if (req.body.projectId) {
+    const project = await requireProject(req.user, req.body.projectId);
+    // Prefer manifests and entry-point-looking files so the model sees what matters most.
+    const rank = (f) => (/package\.json|requirements|pyproject|readme/i.test(f.name) ? 0 : /(index|main|app|server)\./i.test(f.name) ? 1 : /(route|controller|api)/i.test(f.name) ? 2 : 3);
+    const files = project.files.slice().sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+    return res.json(await generateDocs({ kind, projectName: project.name, files, index: buildProjectIndex(project) }));
+  }
+  const files = Array.isArray(req.body.files) ? req.body.files.filter((f) => f && f.name && typeof f.content === "string") : [];
+  res.json(await generateDocs({ kind, projectName: req.body.name || "Snippet", files, index: null }));
 });
 
 export const verifyController = asyncHandler(async (req, res) => {

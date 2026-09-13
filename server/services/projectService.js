@@ -5,6 +5,7 @@ import { generateId } from "../utils/hash.js";
 import { analyseProject } from "./engine/projectAnalyzer.js";
 import { analyzeProjectWithEngine } from "./engine/analysisPipeline.js";
 import { extractArchive, stripCommonRoot, buildArchive } from "./archiveService.js";
+import { buildTechnicalDebt } from "./engine/debtAnalyzer.js";
 import { fetchGithubRepositoryFiles } from "./engine/githubClient.js";
 
 function summary(project) {
@@ -71,6 +72,9 @@ export async function updateProjectFile(user, id, payload) {
 export async function analyzeStoredProject(user, id, payload = {}) {
   const project = await requireProject(user, id);
   const result = await analyzeProjectWithEngine({ files: project.files, sourceName: project.name, includeAi: payload.includeAi !== false });
+  // Keep the prior analysis (findings + summary only) so trends can be measured
+  // rather than guessed. Only one predecessor is retained.
+  if (project.lastAnalysis) project.previousAnalysis = { findings: project.lastAnalysis.findings, summary: project.lastAnalysis.summary, createdAt: project.lastAnalysis.createdAt };
   project.lastAnalysis = { ...result, createdAt: new Date().toISOString() };
   project.metadata = buildMetadata(project.files); project.updatedAt = new Date().toISOString();
   await saveProject(project);
@@ -116,3 +120,5 @@ export async function exportProjectArchive(user, id) {
   const project = await requireProject(user, id);
   return { filename: `${project.name.replace(/[^\w.-]+/g, "_") || "project"}.zip`, buffer: buildArchive(project.files) };
 }
+
+export async function projectTechnicalDebt(user, id) { return { debt: buildTechnicalDebt(await requireProject(user, id)) }; }

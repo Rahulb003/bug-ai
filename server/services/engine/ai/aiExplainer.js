@@ -1,12 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
 
-export const EXPLAIN_MODES = ["beginner", "technical", "line-by-line"];
+export const EXPLAIN_MODES = ["beginner", "technical", "line-by-line", "architecture", "performance", "security"];
 const MAX_CHARS = 20000;
 
 const MODE_BRIEF = {
   beginner: "Explain in plain language for someone new to this codebase. Avoid jargon; when a term is unavoidable, define it in one clause.",
   technical: "Explain for an experienced engineer: control flow, data flow, side effects, and any edge cases the code does or does not handle.",
-  "line-by-line": "Walk through the code in order. Group consecutive lines that form one logical step, and say what each step does."
+  "line-by-line": "Walk through the code in order. Group consecutive lines that form one logical step, and say what each step does.",
+  architecture: "Explain the role this code plays structurally: its responsibilities, what it depends on, what depends on it, and the boundaries it sits on. Only describe relationships visible in the code shown.",
+  performance: "Explain the performance characteristics: complexity of loops and lookups, allocations, repeated work, blocking calls. Label everything as static reasoning — no runtime measurement has been taken.",
+  security: "Explain the security-relevant behaviour: where untrusted input enters, where it reaches a sink, what validation exists, and what is missing. Do not invent CWE identifiers; name a weakness class only when the code shown clearly exhibits it."
 };
 
 function extractJson(text) {

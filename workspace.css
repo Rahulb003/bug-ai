@@ -385,3 +385,6 @@ body.workspace-page { background:var(--ws-bg); color:var(--ws-text); margin:0; m
 .pg-finding:has(.pg-triage.ignored), tr.triage-ignored { opacity:.6; }
 .fcard-actions-secondary .ws-button { flex:0 0 auto; font-size:12px; padding:6px 9px; }
 .st-problems-bar { padding:6px 12px; border-bottom:1px solid var(--ws-line); font-size:12px; }
+.s-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--ws-line); font-size:13px; }
+.s-row:last-of-type { border-bottom:0; }
+.s-row input[type=checkbox] { accent-color:var(--ws-brand); width:16px; height:16px; }

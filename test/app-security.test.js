@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import app from "../server/app.js";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+// BUG_AI_DB_PATH must be set before any server module loads.
+process.env.BUG_AI_DB_PATH = path.join(await mkdtemp(path.join(tmpdir(), "bug-ai-security-")), "db.json");
+const { default: app } = await import("../server/app.js");
 
 test("only explicit browser assets are public", async (t) => {
   const server = app.listen(0, "127.0.0.1");
@@ -32,4 +38,14 @@ test("there is no password-less login path", async (t) => {
   assert.equal(body.token, undefined, "no session may ever be issued from an email alone");
   const login = await fetch(`http://127.0.0.1:${port}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "nobody", password: "" }) });
   assert.ok([400, 401].includes(login.status), "login without a valid password is refused");
+});
+
+test("database: concurrent updates never expose a half-written file or lose writes", async () => {
+  const { updateDatabase, readDatabase } = await import("../server/models/database.js");
+  await updateDatabase((d) => ({ ...d, counter: 0, pad: "x".repeat(300000) }));
+  let badReads = 0;
+  const readers = (async () => { for (let i = 0; i < 40; i++) { try { await readDatabase(); } catch { badReads++; } } })();
+  await Promise.all([readers, ...Array.from({ length: 25 }, () => updateDatabase((d) => ({ ...d, counter: d.counter + 1 })))]);
+  assert.equal(badReads, 0, "a reader must never see a truncated database");
+  assert.equal((await readDatabase()).counter, 25, "no update was lost to a stale read");
 });

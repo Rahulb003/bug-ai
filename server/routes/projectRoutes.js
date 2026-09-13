@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import {
   analyzeStoredProjectController, createProjectController, deleteProjectController, getProjectController, getProjectFilesController,
-  listProjectsController, projectArchitectureController, importArchiveController, importGithubController, exportProjectController, projectDependenciesController, renameProjectController, updateProjectFileController
+  listProjectsController, projectArchitectureController, importArchiveController, importGithubController, exportProjectController, projectDebtController, projectDependenciesController, renameProjectController, updateProjectFileController
 } from "../controllers/projectController.js";
 
 const router = Router();
@@ -20,4 +20,5 @@ router.put("/projects/:projectId/files", updateProjectFileController);
 router.post("/projects/:projectId/analyze", analyzeStoredProjectController);
 router.get("/projects/:projectId/dependencies", projectDependenciesController);
 router.get("/projects/:projectId/architecture", projectArchitectureController);
+router.get("/projects/:projectId/debt", projectDebtController);
 export default router;

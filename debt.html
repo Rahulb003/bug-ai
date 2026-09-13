@@ -1,0 +1,32 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Technical Debt | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"><link rel="stylesheet" href="motion.css"></head><body class="workspace-page" data-page="debt"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script src="motion.js"></script><script src="pages.js"></script><script>
+document.addEventListener("DOMContentLoaded", async () => {
+  if (!App.requireAuth()) return;
+  const root = document.getElementById("workspace-content");
+  const esc = BugWorkspace.esc;
+  const id = BugWorkspace.selectedProject();
+  if (!id) { root.innerHTML = BugWorkspace.emptyState({ title: "No project selected", body: "Technical debt is derived from a stored project's analysis.", actionHref: "projects.html", actionLabel: "Open Projects" }); return; }
+  root.innerHTML = '<p class="ws-muted">Deriving technical debt from the last analysis…</p>';
+  let debt;
+  try { debt = (await App.api("/projects/" + id + "/debt")).debt; }
+  catch (error) { root.innerHTML = BugWorkspace.emptyState({ title: "Could not load", body: error.message }); return; }
+  if (debt.status !== "derived") {
+    root.innerHTML = BugPages.header({ title: "Technical Debt", subtitle: "Derived from real findings; never estimated." })
+      + BugWorkspace.emptyState({ title: "No analysis yet", body: debt.reason, actionHref: "projects.html", actionLabel: "Analyze the project" });
+    return;
+  }
+  const t = debt.totals;
+  const trendText = debt.trend.status === "measured"
+    ? (debt.trend.delta === 0 ? "unchanged" : (debt.trend.delta > 0 ? "+" : "") + debt.trend.delta + " finding(s)") + " since " + new Date(debt.trend.previousAt).toLocaleString()
+    : debt.trend.reason;
+  const sign = (n) => (n > 0 ? "▲ +" + n : n < 0 ? "▼ " + n : "— 0");
+  root.innerHTML = BugPages.header({ title: "Technical Debt", subtitle: "From the analysis at " + new Date(debt.analyzedAt).toLocaleString() + ". " + esc(debt.note), actions: '<a class="ws-button" href="analytics.html">Analytics</a><a class="ws-button" href="studio.html">Open Studio</a>' })
+    + '<div class="pg-sevbar"><span class="pg-sevchip critical"><b>' + t.critical + '</b> CRITICAL</span><span class="pg-sevchip high"><b>' + t.high + '</b> HIGH</span><span class="pg-sevchip medium"><b>' + t.medium + '</b> MEDIUM</span><span class="pg-sevchip low"><b>' + t.low + '</b> LOW</span><span class="pg-sevchip"><b>' + t.occurrences + "</b> occurrences</span></div>"
+    + '<div class="ws-notice ' + (debt.trend.status === "measured" ? (debt.trend.delta > 0 ? "tone-warn" : "tone-ok") : "") + '"><b>Trend:</b> ' + esc(trendText) + "</div>"
+    + (debt.items.length ? '<table class="ws-table" style="margin-top:14px"><thead><tr><th>Priority</th><th>Issue</th><th>Category</th><th>Occurrences</th><th>Affected files</th><th>Trend</th><th>Recommended action</th></tr></thead><tbody>'
+        + debt.items.map((i) => '<tr><td><span class="ws-badge ' + esc(i.priority) + '">' + esc(i.priority) + "</span></td><td><b>" + esc(i.title) + '</b><br><small class="ws-muted">' + esc(i.id) + " · " + esc(i.detectionSource) + "</small></td><td>" + esc(i.category) + "</td><td>" + i.occurrences + "</td><td>" + i.affectedFiles.slice(0, 4).map((f) => '<button class="pg-link" data-file="' + esc(f) + '">' + esc(f) + "</button>").join(", ") + (i.affectedFiles.length > 4 ? " +" + (i.affectedFiles.length - 4) : "") + "</td><td>" + (i.trend.status === "measured" ? sign(i.trend.delta) : '<span class="ws-muted">n/a</span>') + "</td><td>" + esc(i.recommendedAction) + "</td></tr>").join("")
+        + "</tbody></table>"
+      : '<section class="ws-card" style="margin-top:14px"><p class="ws-muted">The last analysis produced no findings, so no debt is recorded.</p></section>')
+    + (debt.resolved.length ? '<section class="ws-card" style="margin-top:16px"><h3>Resolved since the previous analysis <span class="ws-badge">' + debt.resolved.length + '</span></h3><ul class="ws-list">' + debt.resolved.map((r) => "<li><b>" + esc(r.title) + "</b> — " + r.previous + " occurrence(s) before, none now</li>").join("") + "</ul></section>" : "");
+  root.querySelectorAll("[data-file]").forEach((b) => b.onclick = () => BugWorkspace.openInStudio({ file: b.dataset.file }));
+});
+</script></body></html>

@@ -98,6 +98,8 @@ document.addEventListener("DOMContentLoaded", () => {
   + '<button class="ws-button" id="op-fixall">' + icon("review") + " Fix All</button>"
   + '<button class="ws-button" id="op-verify">' + icon("shield") + " Verify</button>"
   + '<button class="ws-button" id="op-rescan">' + icon("studio") + " Rescan</button>"
+  + '<span class="op-spacer"></span><select class="ws-select" id="op-to" title="Translate to"><option value="">Translate to…</option>' + ["javascript","typescript","python","java","go","rust","csharp","cpp","ruby","php","kotlin","swift"].map((l) => '<option value="' + l + '">' + l + "</option>").join("") + "</select>"
+  + '<button class="ws-button" id="op-translate">Translate</button>'
   + "</div>"
   + '<div id="op-status" class="ws-notice">Nothing proposed yet. Pick a mode and press Optimize, or pull in fix proposals with Fix All.</div>'
   + '<div class="op-tabs" id="op-tabs">'
@@ -194,6 +196,27 @@ document.addEventListener("DOMContentLoaded", () => {
       loadProposal(out.optimizedCode, mode, out.changes);
       setStatus(hunks.length ? hunks.length + " hunk(s) proposed in " + mode + " mode. Review each one — nothing is applied yet." : (out.note || "No transformation was produced for this mode."), hunks.length ? "ok" : "warn");
       renderVerification(out.optimizedVerification, "Static check of the proposed code");
+    } catch (error) { setStatus(error.message, "bad"); }
+  };
+
+  // Translation is a proposal like any other: it lands as hunks against the
+  // current source, with the target-language static check and an explicit
+  // "equivalence not verified" caveat. Accepting it replaces the working copy.
+  document.getElementById("op-translate").onclick = async () => {
+    const to = document.getElementById("op-to").value;
+    if (!to) return App.showToast("Choose a target language first.", "warning", "Translate");
+    setStatus("Translating to " + to + "…");
+    try {
+      const out = await App.api("/translate", { method: "POST", body: { code: current, filename: input.filename, from: input.language, to } });
+      if (out.status !== "completed") { setStatus("Translation " + out.status + ": " + (out.reason || ""), "warn"); return; }
+      loadProposal(out.translatedCode, "translate:" + to, [
+        ...out.notes.map((n) => ({ category: "translation", explanation: n, source: "ai" })),
+        ...out.caveats.map((c) => ({ category: "caveat", explanation: c, source: "ai" })),
+        { category: "equivalence", explanation: out.equivalence.reason, source: "verification" }
+      ]);
+      renderVerification(out.verification, "Static check of the " + to + " translation");
+      setStatus("Translated " + out.from + " → " + to + ": " + hunks.length + " hunk(s). Semantic equivalence is NOT verified — review, then accept to replace the working copy.", "warn");
+      input.language = to; input.filename = String(input.filename || "snippet").replace(/.[^.]+$/, "") + "." + ({ javascript: "js", typescript: "ts", python: "py", java: "java", go: "go", rust: "rs", csharp: "cs", cpp: "cpp", ruby: "rb", php: "php", kotlin: "kt", swift: "swift" }[to] || to);
     } catch (error) { setStatus(error.message, "bad"); }
   };
 

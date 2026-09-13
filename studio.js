@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div data-rp="report" hidden><div class="ws-empty st-mini">Run Fix &amp; Verify All to see the pipeline report here.</div></div>
           <div data-rp="explainer" hidden>
             <div class="st-explain-tools">
-              <select class="ws-select" id="st-explain-mode"><option value="beginner">Beginner</option><option value="technical" selected>Technical</option><option value="line-by-line">Line by line</option></select>
+              <select class="ws-select" id="st-explain-mode"><option value="beginner">Beginner</option><option value="technical" selected>Technical</option><option value="line-by-line">Line by line</option><option value="architecture">Architecture</option><option value="performance">Performance (static)</option><option value="security">Security</option></select>
               <button class="ws-button primary" id="st-explain-go">Explain selection</button>
             </div>
             <div id="st-explain-out"><div class="ws-empty st-mini">Select code in the editor (or explain the whole file) and press Explain.</div></div>
@@ -99,10 +99,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const openFiles = []; let activeIndex = -1;
   const monacoLangFor = (id) => (id && id !== "auto" ? id : "plaintext");
+  // Editor preferences come from Settings (browser-local); defaults match the previous fixed values.
+  let prefs = { editorFontSize: 13, editorMinimap: true, editorWordWrap: false, includeAiOnScan: true, confirmAiFixes: true };
+  try { prefs = { ...prefs, ...(JSON.parse(localStorage.getItem("bugai_prefs") || "{}")) }; } catch { /* keep defaults */ }
   const editor = monaco.editor.create(document.getElementById("st-editor"), {
     automaticLayout: true,
     theme: document.documentElement.getAttribute("data-theme") === "light" ? "vs" : "vs-dark",
-    minimap: { enabled: true }, scrollBeyondLastLine: false, fontSize: 13, glyphMargin: true
+    minimap: { enabled: prefs.editorMinimap !== false }, scrollBeyondLastLine: false, fontSize: Number(prefs.editorFontSize) || 13, glyphMargin: true,
+    wordWrap: prefs.editorWordWrap ? "on" : "off"
   });
   new MutationObserver(() => monaco.editor.setTheme(document.documentElement.getAttribute("data-theme") === "light" ? "vs" : "vs-dark")).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
@@ -424,7 +428,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const status = document.getElementById("st-status");
     status.textContent = "Analyzing…"; logLine("Analyze started");
     try {
-      const scan = await App.api("/scan-code", { method: "POST", body: { code: code(), filename: name(), language: lang() } });
+      const scan = await App.api("/scan-code", { method: "POST", body: { code: code(), filename: name(), language: lang(), includeAi: prefs.includeAiOnScan !== false } });
       BugWorkspace.setContext({ file: name(), scan });
       if (lang() === "auto" && scan.language && editor.getModel()) monaco.editor.setModelLanguage(editor.getModel(), monacoLangFor(scan.language));
       renderFindings(scan); syncStatus();

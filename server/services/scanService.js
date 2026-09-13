@@ -59,10 +59,12 @@ export async function analyzeCodeSnippet({ userId, payload }) {
     throw createAppError(413, "Code input exceeds the 200,000-character scan limit.");
   }
 
+  // AI reasoning is additive; the caller may switch it off (Settings > Analysis).
   const result = await analyzeWithEngine({
     source: code,
     language,
-    sourceName: payload.filename || "Live snippet"
+    sourceName: payload.filename || "Live snippet",
+    includeAi: payload.includeAi !== false
   });
 
   const scan = buildStoredScan({

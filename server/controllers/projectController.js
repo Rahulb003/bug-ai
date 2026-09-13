@@ -20,3 +20,4 @@ export const exportProjectController = asyncHandler(async (req, res) => {
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.send(buffer);
 });
+export const projectDebtController = asyncHandler(async (req, res) => res.json(await projects.projectTechnicalDebt(req.user, req.params.projectId)));

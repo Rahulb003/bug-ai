@@ -11,6 +11,9 @@ import {
   generateTestsController,
   verifyController,
   explainController,
+  capabilitiesController,
+  translateController,
+  docsController,
   repairController,
   runTestsController,
   testCapabilityController,
@@ -34,6 +37,9 @@ router.post("/optimize", requireAuth, optimizeController);
 router.post("/test/generate", requireAuth, generateTestsController);
 router.post("/verify", requireAuth, verifyController);
 router.post("/explain", requireAuth, explainController);
+router.get("/system/capabilities", requireAuth, capabilitiesController);
+router.post("/translate", requireAuth, translateController);
+router.post("/docs", requireAuth, docsController);
 router.post("/repair", requireAuth, repairController);
 router.post("/test/run", requireAuth, runTestsController);
 router.get("/test/capability", requireAuth, testCapabilityController);

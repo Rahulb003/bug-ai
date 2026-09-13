@@ -82,15 +82,39 @@ export async function readDatabase() {
   };
 }
 
-export async function writeDatabase(nextData) {
-  await ensureDatabase();
-  writeQueue = writeQueue.then(() => fs.writeFile(dbFile, JSON.stringify(nextData, null, 2), "utf8"));
-  await writeQueue;
+// Writes go to a temp file and are renamed into place so a concurrent
+// readDatabase never observes a half-written (unparseable) file.
+async function atomicWrite(nextData) {
+  const tmp = dbFile + "." + process.pid + ".tmp";
+  await fs.writeFile(tmp, JSON.stringify(nextData, null, 2), "utf8");
+  // On Windows the rename fails with EPERM/EBUSY while a reader still holds
+  // the file open; retry briefly rather than falling back to a truncating write.
+  for (let attempt = 0; ; attempt++) {
+    try { await fs.rename(tmp, dbFile); return; }
+    catch (error) {
+      if (!["EPERM", "EBUSY", "EACCES"].includes(error.code) || attempt >= 50) { await fs.rm(tmp, { force: true }); throw error; }
+      await new Promise((resolve) => setTimeout(resolve, 5 + attempt * 2));
+    }
+  }
 }
 
+export async function writeDatabase(nextData) {
+  await ensureDatabase();
+  const run = writeQueue.then(() => atomicWrite(nextData));
+  writeQueue = run.catch(() => {});
+  await run;
+}
+
+// The read-modify-write runs inside the queue so two concurrent updates
+// cannot overwrite each other with stale data.
 export async function updateDatabase(updater) {
-  const data = await readDatabase();
-  const updated = await updater(data);
-  await writeDatabase(updated);
-  return updated;
+  await ensureDatabase();
+  const run = writeQueue.then(async () => {
+    const data = await readDatabase();
+    const updated = await updater(data);
+    await atomicWrite(updated);
+    return updated;
+  });
+  writeQueue = run.catch(() => {});
+  return run;
 }

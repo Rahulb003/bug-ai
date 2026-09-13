@@ -59,8 +59,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     BugWorkspace.setContext({ projectId: id, file: "" });
     BugWorkspace.cacheClear("projects");
     document.getElementById("project-detail").innerHTML = "<h3>" + esc(p.name) + '</h3><p class="ws-muted">' + p.fileCount + " files · " + esc(p.languages.join(", ") || "unknown language") + "</p><p>Manifests: " + esc(p.manifests.join(", ") || "none detected") + "</p>"
-      + '<div class="ws-toolbar"><a class="ws-button primary" href="studio.html">Open Studio</a><button class="ws-button" id="analyze-project">Analyze project</button><button class="ws-button" id="export-project">Download ZIP</button><a class="ws-button" href="architecture.html">Architecture</a><a class="ws-button" href="dependencies.html">Dependencies</a><a class="ws-button" href="security.html">Security</a></div><p id="project-status" class="ws-muted"></p>';
+      + '<div class="ws-toolbar"><a class="ws-button primary" href="studio.html">Open Studio</a><button class="ws-button" id="analyze-project">Analyze project</button><button class="ws-button" id="export-project">Download ZIP</button><a class="ws-button" href="architecture.html">Architecture</a><a class="ws-button" href="dependencies.html">Dependencies</a><a class="ws-button" href="security.html">Security</a><a class="ws-button" href="debt.html">Technical debt</a></div><p id="project-status" class="ws-muted"></p>'
+      + '<div class="ws-toolbar" style="margin-top:14px"><select class="ws-select" id="doc-kind" style="width:auto"><option value="readme">README</option><option value="api">API reference</option><option value="functions">Function docs</option><option value="architecture">Architecture doc</option></select><button class="ws-button" id="doc-generate">Generate documentation</button><button class="ws-button" id="doc-download" disabled>Download .md</button></div><div id="doc-out"></div>';
     document.getElementById("export-project").onclick = () => download(id);
+    let lastDoc = null;
+    document.getElementById("doc-generate").onclick = async (e) => {
+      const out = document.getElementById("doc-out");
+      out.innerHTML = '<p class="ws-muted">Generating from the project files…</p>';
+      try {
+        const doc = await BugMotion.busy(e.currentTarget, App.api("/docs", { method: "POST", body: { projectId: id, kind: document.getElementById("doc-kind").value } }), { busyLabel: "Generating…", doneLabel: "✓ Generated" });
+        if (doc.status !== "completed") { out.innerHTML = BugWorkspace.emptyState({ title: "Documentation " + doc.status.replaceAll("_", " "), body: doc.reason }); return; }
+        lastDoc = doc; document.getElementById("doc-download").disabled = false;
+        out.innerHTML = '<div class="ws-notice">' + esc(doc.note) + " Files sent: " + doc.filesSent.map(esc).join(", ") + (doc.gaps.length ? "<br><b>Gaps the model reported:</b> " + doc.gaps.map(esc).join("; ") : "") + '</div><pre class="ws-code" style="max-height:480px">' + esc(doc.markdown) + "</pre>";
+      } catch (error) { out.innerHTML = BugWorkspace.emptyState({ title: "Generation failed", body: error.message }); }
+    };
+    document.getElementById("doc-download").onclick = () => { if (!lastDoc) return; const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([lastDoc.markdown], { type: "text/markdown" })); a.download = (lastDoc.kind === "readme" ? "README" : lastDoc.kind.toUpperCase()) + ".md"; a.click(); URL.revokeObjectURL(a.href); };
     document.getElementById("analyze-project").onclick = async () => {
       const status = document.getElementById("project-status");
       status.textContent = "Analyzing project…";
