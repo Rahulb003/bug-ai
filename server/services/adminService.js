@@ -25,11 +25,15 @@ export async function getAdminOverview() {
     totalUsers: users.length,
     totalScans: scans.length,
     activeToday: scans.filter((scan) => new Date(scan.createdAt).toDateString() === new Date().toDateString()).length,
-    revenueEstimate: users.length * 2499,
+    // No billing exists, so there is no revenue to report. The previous value
+    // was users * 2499, a number with no source.
+    revenue: { status: "not_measured", reason: "No billing or subscription data is recorded." },
     topBugs,
     analytics,
-    avgRiskScore: scans.length ? Math.round(scans.reduce((sum, scan) => sum + scan.riskScore, 0) / scans.length) : 0,
-    avgQualityScore: scans.length ? Math.round(scans.reduce((sum, scan) => sum + scan.codeQualityScore, 0) / scans.length) : 0,
+    avgRiskScore: scans.length ? Math.round(scans.reduce((sum, scan) => sum + scan.riskScore, 0) / scans.length) : null,
+    // codeQualityScore is never computed; averaging it reported a constant 0.
+    avgQualityScore: null,
+    qualityStatus: "not_measured",
     activeUsers: users.filter((user) => scans.some((scan) => scan.userId === user.id)).length
   };
 }

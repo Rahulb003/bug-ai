@@ -1,201 +1,61 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>History | BugZero AI</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body class="app-page">
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a href="index.html" class="brand-lockup">
-        <div class="brand-mark">BZ</div>
-        <div>
-          <div>BugZero AI</div>
-          <span class="brand-subtitle">Scan history</span>
-        </div>
-      </a>
-      <nav class="nav-links">
-        <a href="dashboard.html">Workspace</a>
-        <a href="history.html" class="active">History</a>
-        <a href="admin.html">Admin</a>
-      </nav>
-      <div class="nav-actions">
-        <button class="theme-toggle" data-theme-toggle type="button">Theme</button>
-        <a class="btn btn-secondary" href="#" data-logout>Logout</a>
-      </div>
-    </div>
-  </header>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>History | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="history"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script src="pages.js"></script><script>
+document.addEventListener("DOMContentLoaded", async () => {
+  if (!App.requireAuth()) return;
+  const root = document.getElementById("workspace-content");
+  const esc = BugWorkspace.esc;
+  root.innerHTML = '<p class="ws-muted">Loading stored scans…</p>';
+  let scans = [];
+  try { scans = (await App.api("/history")).scans || []; }
+  catch (error) { root.innerHTML = BugWorkspace.emptyState({ title: "Could not load history", body: error.message }); return; }
 
-  <main class="history-shell">
-    <section class="section" style="padding-top:36px;">
-      <div class="section-head reveal">
-        <span class="eyebrow">Saved history</span>
-        <h2>Review previous scans, compare risk changes, and share reports</h2>
-      </div>
+  if (!scans.length) {
+    root.innerHTML = BugPages.header({ title: "History", subtitle: "Every stored scan, fix and verification." })
+      + BugWorkspace.emptyState({ title: "No history yet", body: "Previous scans will appear here once you analyze something.", actionHref: "studio.html", actionLabel: "Open Code Studio" });
+    return;
+  }
 
-      <div class="filters reveal">
-        <input id="search-history" placeholder="Search by filename or bug title">
-        <select id="severity-filter">
-          <option value="all">All severities</option>
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-        <select id="history-export-format">
-          <option value="json">Export JSON</option>
-          <option value="csv">Export CSV</option>
-          <option value="excel">Export Excel</option>
-        </select>
-      </div>
+  const sevClass = (level) => String(level || "low").toLowerCase();
+  const current = BugWorkspace.currentScan();
+  root.innerHTML = BugPages.header({ title: "History", subtitle: scans.length + " stored scan(s). Select two to compare.", actions: '<button class="ws-button" id="compare" disabled>Compare selected</button><a class="ws-button" href="analytics.html">Analytics</a>' })
+  + '<div id="compare-out"></div>'
+  + '<table class="ws-table"><thead><tr><th></th><th>When</th><th>Source</th><th>Type</th><th>Findings</th><th>Risk</th><th>Verification</th><th></th></tr></thead><tbody>'
+  + scans.map((s) => '<tr' + (current && current.id === s.id ? ' class="selected-row"' : "") + '><td><input type="checkbox" data-pick="' + esc(s.id) + '" aria-label="Select scan"></td>'
+    + "<td>" + esc(new Date(s.createdAt).toLocaleString()) + "</td>"
+    + "<td>" + esc(s.sourceName || "snippet") + (s.ownerName && !s.isMine ? ' <small class="ws-muted">by ' + esc(s.ownerName) + "</small>" : "") + "</td>"
+    + "<td>" + esc(s.inputType || "code") + "</td>"
+    + "<td>" + ((s.findings || s.bugs || []).length) + "</td>"
+    + '<td><span class="ws-badge ' + sevClass(s.riskLevel) + '">' + esc(String(s.riskScore ?? "—")) + " " + esc(s.riskLevel || "") + "</span></td>"
+    + "<td>" + esc(String(s.verification?.status || "NOT RUN").replaceAll("_", " ")) + "</td>"
+    + '<td><button class="ws-button" data-load="' + esc(s.id) + '">Load</button> <button class="ws-button" data-export="' + esc(s.id) + '">Export</button></td></tr>').join("")
+  + "</tbody></table>";
 
-      <div class="workspace-grid">
-        <section class="panel reveal">
-          <div class="panel-head">
-            <div>
-              <h3>Stored scans</h3>
-              <p>Each analysis is automatically saved to persistent history.</p>
-            </div>
-          </div>
-          <div id="history-list" class="comparison-box"></div>
-        </section>
+  const picks = () => [...document.querySelectorAll("[data-pick]:checked")].map((c) => c.dataset.pick);
+  document.querySelectorAll("[data-pick]").forEach((c) => c.onchange = () => { document.getElementById("compare").disabled = picks().length !== 2; });
+  document.querySelectorAll("[data-load]").forEach((b) => b.onclick = async () => {
+    try {
+      const { scan } = await App.api("/scans/" + b.dataset.load);
+      BugWorkspace.setContext({ scan, file: scan.sourceName || "" });
+      App.showToast("Scan loaded as the current analysis.", "success", "Loaded");
+      location.href = "analyzer.html";
+    } catch (error) { App.showToast(error.message, "error", "Load failed"); }
+  });
+  document.querySelectorAll("[data-export]").forEach((b) => b.onclick = async () => {
+    try { await App.exportReport(b.dataset.export, "json"); } catch (error) { App.showToast(error.message, "error", "Export failed"); }
+  });
 
-        <aside class="panel reveal">
-          <div class="panel-head">
-            <div>
-              <h3>Compare scans</h3>
-              <p>Select two reports to see the delta in risk, bugs, and quality.</p>
-            </div>
-          </div>
-          <div class="comparison-box">
-            <select id="compare-current"></select>
-            <select id="compare-previous"></select>
-            <button class="btn btn-primary" type="button" id="compare-btn">Compare reports</button>
-            <div id="compare-output" class="empty-state">
-              <p>Comparison results will appear here.</p>
-            </div>
-          </div>
-        </aside>
-      </div>
-    </section>
-  </main>
-
-  <script src="ui.js"></script>
-  <script>
-    App.requireAuth();
-    let scans = [];
-
-    function buildOptions() {
-      const selects = [document.getElementById("compare-current"), document.getElementById("compare-previous")];
-      selects.forEach((select) => {
-        select.innerHTML = scans.map((scan) => `<option value="${scan.id}">${scan.sourceName} - ${scan.ownerName || "Developer"} - ${new Date(scan.createdAt).toLocaleString()}</option>`).join("");
-      });
-      if (selects[1].options.length > 1) selects[1].selectedIndex = 1;
-    }
-
-    function renderHistory() {
-      const search = document.getElementById("search-history").value.toLowerCase();
-      const severity = document.getElementById("severity-filter").value;
-      const root = document.getElementById("history-list");
-      const filtered = scans.filter((scan) => {
-        const matchesSearch = !search || scan.sourceName.toLowerCase().includes(search) || scan.bugs.some((bug) => bug.title.toLowerCase().includes(search));
-        const matchesSeverity = severity === "all" || scan.bugs.some((bug) => bug.severity === severity);
-        return matchesSearch && matchesSeverity;
-      });
-
-      if (!filtered.length) {
-        root.innerHTML = `<div class="empty-state"><p>No scans match the current filters.</p></div>`;
-        return;
-      }
-
-      root.innerHTML = filtered.map((scan) => `
-        <article class="history-card panel">
-          <div class="issue-meta">
-            <div>
-              <strong>${App.escapeHtml(scan.sourceName)}</strong>
-              <p>${new Date(scan.createdAt).toLocaleString()} - ${scan.inputType} - ${scan.isMine ? "My scan" : `Team scan by ${scan.ownerName || "Developer"}`}</p>
-            </div>
-            <span class="badge ${App.formatSeverityClass(scan.riskLevel)}">${scan.riskLevel}</span>
-          </div>
-          <div class="badge-row" style="margin-top:14px;">
-            <span class="badge high">Risk ${scan.riskScore}%</span>
-            <span class="badge medium">Bugs ${scan.bugs.length}</span>
-            <span class="badge low">Quality ${scan.codeQualityScore}</span>
-          </div>
-          <p style="margin-top:14px;">${App.escapeHtml(scan.summary)}</p>
-          <div class="report-actions" style="margin-top:14px;">
-            <button class="btn btn-secondary" type="button" onclick='viewReport("${scan.id}")'>Copy fixed code</button>
-            <button class="btn btn-secondary" type="button" onclick='exportReport("${scan.id}")'>Export</button>
-            <button class="btn btn-secondary" type="button" onclick='shareReport("${scan.id}")'>Share link</button>
-          </div>
-          <div class="badge-row" style="margin-top:14px;">
-            ${(scan.comments || []).slice(0, 2).map((comment) => `<span class="chip low">${App.escapeHtml(comment.authorName)}: ${App.escapeHtml(comment.message.slice(0, 32))}</span>`).join("")}
-          </div>
-        </article>
-      `).join("");
-    }
-
-    window.viewReport = async (scanId) => {
-      const scan = scans.find((item) => item.id === scanId);
-      if (!scan) return;
-      await navigator.clipboard.writeText(scan.fixedCode || "");
-      App.showToast("Fixed code copied to clipboard.");
-    };
-
-    window.shareReport = async (scanId) => {
-      try {
-        const share = await App.api(`/history/${scanId}/share`, { method: "POST" });
-        await navigator.clipboard.writeText(`${window.location.origin}${share.url}`);
-        App.showToast("Share link copied to clipboard.");
-      } catch (error) {
-        App.showToast(error.message, "error", "Share failed");
-      }
-    };
-
-    window.exportReport = async (scanId) => {
-      try {
-        const format = document.getElementById("history-export-format").value;
-        await App.exportReport(scanId, format);
-        App.showToast(`${format.toUpperCase()} report downloaded.`);
-      } catch (error) {
-        App.showToast(error.message, "error", "Export failed");
-      }
-    };
-
-    document.getElementById("compare-btn").addEventListener("click", async () => {
-      try {
-        const result = await App.api("/history/compare", {
-          method: "POST",
-          body: {
-            currentScanId: document.getElementById("compare-current").value,
-            previousScanId: document.getElementById("compare-previous").value
-          }
-        });
-        document.getElementById("compare-output").innerHTML = `
-          <div class="comparison-metric"><span>Risk score delta</span><strong>${result.delta.riskScore > 0 ? "+" : ""}${result.delta.riskScore}</strong></div>
-          <div class="comparison-metric"><span>Bug count delta</span><strong>${result.delta.bugCount > 0 ? "+" : ""}${result.delta.bugCount}</strong></div>
-          <div class="comparison-metric"><span>Quality score delta</span><strong>${result.delta.qualityScore > 0 ? "+" : ""}${result.delta.qualityScore}</strong></div>
-        `;
-      } catch (error) {
-        App.showToast(error.message, "error", "Compare failed");
-      }
-    });
-
-    document.getElementById("search-history").addEventListener("input", renderHistory);
-    document.getElementById("severity-filter").addEventListener("change", renderHistory);
-
-    (async function init() {
-      try {
-        const history = await App.api("/history");
-        scans = history.scans;
-        buildOptions();
-        renderHistory();
-      } catch (error) {
-        document.getElementById("history-list").innerHTML = `<div class="empty-state"><p>${error.message}</p></div>`;
-      }
-    })();
-  </script>
-</body>
-</html>
+  document.getElementById("compare").onclick = async () => {
+    const [previous, currentId] = picks();
+    const out = document.getElementById("compare-out");
+    out.innerHTML = '<p class="ws-muted">Comparing…</p>';
+    try {
+      const c = await App.api("/history/compare", { method: "POST", body: { currentScanId: currentId, previousScanId: previous } });
+      const d = c.delta || {};
+      const sign = (n) => (n > 0 ? "+" + n : String(n));
+      out.innerHTML = '<section class="ws-card" style="margin-bottom:16px"><h3>Comparison</h3><p class="ws-muted">' + esc(c.previous?.sourceName || "previous") + " → " + esc(c.current?.sourceName || "current") + "</p>"
+        + '<div class="ws-grid cols-3"><div class="ws-card"><span class="ws-muted">Risk prioritisation</span><div class="ws-metric">' + sign(d.riskScore ?? 0) + "</div></div>"
+        + '<div class="ws-card"><span class="ws-muted">Findings</span><div class="ws-metric">' + sign(d.bugCount ?? 0) + "</div></div>"
+        + '<div class="ws-card"><span class="ws-muted">Quality score</span><div class="ws-metric" style="font-size:17px">NOT MEASURED</div><p class="ws-muted">Not computed by the pipeline.</p></div></div></section>';
+    } catch (error) { out.innerHTML = BugWorkspace.emptyState({ title: "Comparison failed", body: error.message }); }
+  };
+});
+</script></body></html>

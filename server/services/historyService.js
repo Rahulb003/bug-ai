@@ -38,7 +38,9 @@ export async function compareScans(user, payload) {
     delta: {
       riskScore: current.riskScore - previous.riskScore,
       bugCount: current.bugs.length - previous.bugs.length,
-      qualityScore: current.codeQualityScore - previous.codeQualityScore
+      // codeQualityScore is never computed, so a numeric delta would be null - null.
+      qualityScore: null,
+      qualityStatus: "not_measured"
     }
   };
 }
