@@ -86,30 +86,10 @@ export async function loginUser(payload) {
   return createSession(user);
 }
 
-export async function buildGoogleSession(payload) {
-  const email = String(payload.email || "").trim().toLowerCase();
-  const name = String(payload.name || "Google User").trim();
-
-  if (!email || !isValidEmail(email)) {
-    throw createAppError(400, "Google login requires a valid email.");
-  }
-
-  const existing = await findUserByEmail(email);
-  const user = existing || await upsertUser({
-    id: generateId("usr"),
-    username: name.replace(/\s+/g, "").toLowerCase().slice(0, 18) || "googleuser",
-    email,
-    passwordHash: hashPassword(generateId("temp")),
-    role: "user",
-    provider: "google",
-    createdAt: new Date().toISOString()
-  });
-
-  await attachWorkspaceInvites(user.email, user.id);
-  await claimWorkspaceInvite(user.email, user.id);
-
-  return createSession(user);
-}
+// buildGoogleSession was removed. It accepted any email with no token
+// verification and returned a session for an existing user with that email —
+// an authentication bypass. Reinstate only behind real ID-token verification
+// (google-auth-library verifyIdToken against a configured GOOGLE_CLIENT_ID).
 
 export async function findUserByToken(token) {
   const payload = verifyJwt(token);
