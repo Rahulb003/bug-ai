@@ -306,8 +306,10 @@ const BugWorkspace = (() => {
   }
 
   // One connected environment: any page can hand a file+line to the editor.
-  function openInStudio({ file, line, column, findingId, panel } = {}) {
+  function openInStudio({ file, line, column, findingId, panel, scanId } = {}) {
     const params = new URLSearchParams();
+    const scan = scanId || currentScan()?.id;
+    if (scan) params.set("scanId", scan);
     if (file) params.set("file", file);
     if (line) params.set("line", String(line));
     if (column) params.set("column", String(column));
@@ -315,6 +317,32 @@ const BugWorkspace = (() => {
     if (panel) params.set("panel", panel);
     if (file) localStorage.setItem("bugai_current_file", file);
     location.href = `studio.html${params.toString() ? `?${params}` : ""}`;
+  }
+
+  // Honour ?scanId= on any page: fetch that stored scan and make it the current
+  // context, so links between pages restore the same analysis without rescanning.
+  async function resolveScanFromUrl() {
+    const wanted = new URLSearchParams(location.search).get("scanId");
+    const current = currentScan();
+    if (!wanted || (current && current.id === wanted)) return current;
+    try {
+      const { scan } = await App.api(`/scans/${wanted}`);
+      setContext({ scan, file: scan.inputType === "code" ? (scan.sourceName || "") : selectedFile() });
+      return scan;
+    } catch (error) {
+      App.showToast(error.message, "error", "Scan not available");
+      return current;
+    }
+  }
+
+  // Persist a triage decision on the stored scan and mirror it into the cached copy.
+  async function setFindingStatus(findingId, status) {
+    const scan = currentScan();
+    if (!scan?.id) throw new Error("This analysis is not stored, so triage cannot be saved.");
+    const out = await App.api(`/scans/${scan.id}/findings/${encodeURIComponent(findingId)}/status`, { method: "POST", body: { status } });
+    (scan.findings || []).forEach((f) => { if (f.id === findingId) f.triage = out.triage; });
+    setContext({ scan });
+    return out.triage;
   }
 
   // Never render a discovered credential in full.
@@ -330,7 +358,7 @@ const BugWorkspace = (() => {
   async function loadProjects() { return (await App.api("/projects")).projects || []; }
   function requireScan(target) { const scan = currentScan(); if (!scan) { target.innerHTML = `<div class="ws-empty"><h2>No active analysis</h2><p>Open Code Studio, analyze code, then return here.</p><a class="ws-button primary" href="studio.html">Open Code Studio</a></div>`; return null; } return scan; }
 
-  return { renderShell, setContext, cacheClear, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
+  return { renderShell, setContext, cacheClear, resolveScanFromUrl, setFindingStatus, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
 })();
 window.BugWorkspace = BugWorkspace;
 document.addEventListener("DOMContentLoaded", () => { BugWorkspace.renderShell(); });

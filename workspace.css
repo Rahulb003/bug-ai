@@ -380,3 +380,8 @@ body.workspace-page { background:var(--ws-bg); color:var(--ws-text); margin:0; m
 @media (prefers-reduced-motion: reduce) { .ws-shell, .ws-collapse .ws-i { transition:none; } }
 .db-metric .ws-metric { font-variant-numeric:tabular-nums; }
 .selected-row td { background:color-mix(in srgb,var(--ws-brand) 8%,transparent); }
+.pg-triage.reviewed { background:color-mix(in srgb,var(--ws-ok) 18%,transparent); color:var(--ws-ok); }
+.pg-triage.ignored { background:var(--ws-panel-2); color:var(--ws-muted); text-decoration:line-through; }
+.pg-finding:has(.pg-triage.ignored), tr.triage-ignored { opacity:.6; }
+.fcard-actions-secondary .ws-button { flex:0 0 auto; font-size:12px; padding:6px 9px; }
+.st-problems-bar { padding:6px 12px; border-bottom:1px solid var(--ws-line); font-size:12px; }

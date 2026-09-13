@@ -43,6 +43,7 @@ const BugPages = (() => {
         <span class="ws-badge ${sevClass(f)}">${esc(sev(f))}</span>
         <strong>${esc(f.title)}</strong>
         <span class="pg-src pg-src-${src.tone}" title="${esc(src.note)}">${esc(src.label)}</span>
+        ${f.triage && f.triage.status !== "open" ? `<span class="ws-badge pg-triage ${esc(f.triage.status)}" title="${esc(f.triage.by || "")} ${esc(f.triage.at ? new Date(f.triage.at).toLocaleString() : "")}">${esc(f.triage.status)}</span>` : ""}
       </div>
       <p>${esc(f.description || f.explanation || "")}</p>
       <div class="pg-finding-meta">
@@ -58,6 +59,9 @@ const BugPages = (() => {
         <button class="ws-button" data-open="${esc(f.id)}">Open in Studio</button>
         <button class="ws-button" data-explain="${esc(f.id)}">Explain</button>
         <button class="ws-button" data-optimizer="${esc(f.id)}">View in Optimizer</button>
+        <button class="ws-button" data-gentest="${esc(f.id)}">Generate Test</button>
+        <button class="ws-button" data-triage="${esc(f.id)}" data-status="${f.triage?.status === "reviewed" ? "open" : "reviewed"}">${f.triage?.status === "reviewed" ? "Reopen" : "Mark reviewed"}</button>
+        <button class="ws-button" data-triage="${esc(f.id)}" data-status="${f.triage?.status === "ignored" ? "open" : "ignored"}">${f.triage?.status === "ignored" ? "Unignore" : "Ignore"}</button>
       </div>
     </article>`;
   }
@@ -69,6 +73,7 @@ const BugPages = (() => {
       <select class="ws-select" id="${id}-sev"><option value="">All severities</option>${["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"].map((s) => `<option value="${s}">${s}</option>`).join("")}</select>
       ${categories.length ? `<select class="ws-select" id="${id}-cat"><option value="">All categories</option>${categories.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select>` : ""}
       <select class="ws-select" id="${id}-src"><option value="">All sources</option><option value="det">Deterministic only</option><option value="ai">AI only</option></select>
+      <label class="op-check"><input type="checkbox" id="${id}-ignored"> Show ignored</label>
     </div>`;
   }
 
@@ -79,6 +84,7 @@ const BugPages = (() => {
     const sv = document.getElementById(`${id}-sev`);
     const ct = document.getElementById(`${id}-cat`);
     const sr = document.getElementById(`${id}-src`);
+    const ig = document.getElementById(`${id}-ignored`);
 
     function paint() {
       const text = (q?.value || "").toLowerCase();
@@ -89,6 +95,7 @@ const BugPages = (() => {
         if (wantSev && sev(f) !== wantSev) return false;
         if (wantCat && String(f.category || "") !== wantCat) return false;
         if (wantSrc && detectionSource(f).tone !== wantSrc) return false;
+        if (!(ig && ig.checked) && f.triage?.status === "ignored") return false;
         if (text && !`${f.title} ${f.description} ${f.file} ${f.rule}`.toLowerCase().includes(text)) return false;
         return true;
       }).sort(bySeverity);
@@ -100,11 +107,21 @@ const BugPages = (() => {
 
       listEl.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => {
         const f = findings.find((x) => x.id === b.dataset.open); if (!f) return;
-        BugWorkspace.openInStudio({ file: f.file, line: f.line, column: f.column, findingId: f.id });
+        BugWorkspace.openInStudio({ file: f.file, line: f.line, column: f.column, findingId: f.id, scanId: BugWorkspace.currentScan()?.id });
       });
       listEl.querySelectorAll("[data-explain]").forEach((b) => b.onclick = () => {
         const f = findings.find((x) => x.id === b.dataset.explain); if (!f) return;
         if (onExplain) onExplain(f); else BugWorkspace.openInStudio({ file: f.file, line: f.line, findingId: f.id, panel: "explainer" });
+      });
+      listEl.querySelectorAll("[data-gentest]").forEach((b) => b.onclick = () => {
+        const f = findings.find((x) => x.id === b.dataset.gentest); if (!f) return;
+        const scan = BugWorkspace.currentScan();
+        localStorage.setItem("bugai_studio_input", JSON.stringify({ code: scan?.sourceCode || "", filename: f.file || scan?.sourceName || "snippet", language: scan?.language || "auto", focusFinding: f.id }));
+        location.href = "tests.html";
+      });
+      listEl.querySelectorAll("[data-triage]").forEach((b) => b.onclick = async () => {
+        try { await BugWorkspace.setFindingStatus(b.dataset.triage, b.dataset.status); const f = findings.find((x) => x.id === b.dataset.triage); if (f) f.triage = BugWorkspace.currentScan()?.findings?.find((x) => x.id === f.id)?.triage || f.triage; paint(); App.showToast(`Marked ${b.dataset.status}.`, "success", "Triage"); }
+        catch (error) { App.showToast(error.message, "error", "Triage not saved"); }
       });
       listEl.querySelectorAll("[data-optimizer]").forEach((b) => b.onclick = () => {
         const f = findings.find((x) => x.id === b.dataset.optimizer); if (!f) return;
@@ -113,7 +130,7 @@ const BugPages = (() => {
         location.href = "optimizer.html";
       });
     }
-    [q, sv, ct, sr].forEach((el) => el && el.addEventListener("input", paint));
+    [q, sv, ct, sr, ig].forEach((el) => el && el.addEventListener("input", paint));
     paint();
   }
 

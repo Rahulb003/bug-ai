@@ -26,18 +26,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     + "<td>" + ((s.findings || s.bugs || []).length) + "</td>"
     + '<td><span class="ws-badge ' + sevClass(s.riskLevel) + '">' + esc(String(s.riskScore ?? "—")) + " " + esc(s.riskLevel || "") + "</span></td>"
     + "<td>" + esc(String(s.verification?.status || "NOT RUN").replaceAll("_", " ")) + "</td>"
-    + '<td><button class="ws-button" data-load="' + esc(s.id) + '">Load</button> <button class="ws-button" data-export="' + esc(s.id) + '">Export</button></td></tr>').join("")
+    + '<td><button class="ws-button" data-studio="' + esc(s.id) + '">Open in Studio</button> <button class="ws-button" data-load="' + esc(s.id) + '">View Findings</button> <button class="ws-button" data-export="' + esc(s.id) + '">Export</button></td></tr>').join("")
   + "</tbody></table>";
 
   const picks = () => [...document.querySelectorAll("[data-pick]:checked")].map((c) => c.dataset.pick);
   document.querySelectorAll("[data-pick]").forEach((c) => c.onchange = () => { document.getElementById("compare").disabled = picks().length !== 2; });
-  document.querySelectorAll("[data-load]").forEach((b) => b.onclick = async () => {
-    try {
-      const { scan } = await App.api("/scans/" + b.dataset.load);
-      BugWorkspace.setContext({ scan, file: scan.sourceName || "" });
-      App.showToast("Scan loaded as the current analysis.", "success", "Loaded");
-      location.href = "analyzer.html";
-    } catch (error) { App.showToast(error.message, "error", "Load failed"); }
+  // View Findings -> Analyzer with the same scan; Open in Studio -> Studio with
+  // the same scan and file. Neither triggers a new scan.
+  document.querySelectorAll("[data-load]").forEach((b) => b.onclick = () => { location.href = "analyzer.html?scanId=" + encodeURIComponent(b.dataset.load); });
+  document.querySelectorAll("[data-studio]").forEach((b) => b.onclick = () => {
+    const s = scans.find((x) => x.id === b.dataset.studio);
+    BugWorkspace.openInStudio({ scanId: b.dataset.studio, file: s && s.inputType === "code" ? (s.sourceName || "") : "" });
   });
   document.querySelectorAll("[data-export]").forEach((b) => b.onclick = async () => {
     try { await App.exportReport(b.dataset.export, "json"); } catch (error) { App.showToast(error.message, "error", "Export failed"); }

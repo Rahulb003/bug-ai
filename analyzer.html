@@ -1,7 +1,8 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bug Analyzer | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="workspace.css"></head><body class="workspace-page" data-page="analyzer"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script src="pages.js"></script><script>
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   if (!App.requireAuth()) return;
   const root = document.getElementById("workspace-content");
+  await BugWorkspace.resolveScanFromUrl();
   const scan = BugWorkspace.currentScan();
   if (!scan) {
     root.innerHTML = BugWorkspace.emptyState({ title: "No analysis yet", body: "Open Code Studio, analyze a file, then return here to work through the findings.", actionHref: "studio.html", actionLabel: "Open Code Studio" });

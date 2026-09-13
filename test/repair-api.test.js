@@ -134,3 +134,32 @@ test("the verdict never claims verification when nothing changed or no test pass
   assert.equal(r.verdict, "NO_SAFE_FIX");
   assert.ok(!/VERIFIED/.test(r.verdict));
 });
+
+test("finding triage persists on the stored scan and respects ownership", async (t) => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}/api`;
+  const call = async (route, options = {}) => {
+    const response = await fetch(`${base}${route}`, { headers: { "Content-Type": "application/json", ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) }, method: options.method || "GET", body: options.body ? JSON.stringify(options.body) : undefined });
+    return { status: response.status, payload: await response.json() };
+  };
+  const owner = (await call("/auth/register", { method: "POST", body: { username: "triageowner", email: "triage@example.test", password: "safe-password" } })).payload;
+  const other = (await call("/auth/register", { method: "POST", body: { username: "triageother", email: "triage2@example.test", password: "safe-password" } })).payload;
+  const scan = (await call("/scan-code", { method: "POST", token: owner.token, body: { language: "javascript", filename: "t.js", code: "eval(x)" } })).payload;
+  const finding = scan.findings[0];
+  assert.ok(finding, "a finding to triage");
+
+  const marked = await call(`/scans/${scan.id}/findings/${encodeURIComponent(finding.id)}/status`, { method: "POST", token: owner.token, body: { status: "ignored" } });
+  assert.equal(marked.status, 200);
+  assert.equal(marked.payload.triage.status, "ignored");
+  assert.equal(marked.payload.triage.by, "triageowner");
+
+  // Persisted: a fresh read of the scan carries the decision.
+  const reread = (await call(`/scans/${scan.id}`, { token: owner.token })).payload.scan;
+  assert.equal(reread.findings.find((f) => f.id === finding.id).triage.status, "ignored");
+
+  assert.equal((await call(`/scans/${scan.id}/findings/${encodeURIComponent(finding.id)}/status`, { method: "POST", token: owner.token, body: { status: "bogus" } })).status, 400);
+  assert.equal((await call(`/scans/${scan.id}/findings/nope/status`, { method: "POST", token: owner.token, body: { status: "reviewed" } })).status, 404);
+  assert.equal((await call(`/scans/${scan.id}/findings/${encodeURIComponent(finding.id)}/status`, { method: "POST", token: other.token, body: { status: "reviewed" } })).status, 404, "another user cannot triage this scan");
+});

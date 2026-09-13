@@ -16,7 +16,7 @@ import { generateTestCode } from "../services/engine/ai/aiTestGenerator.js";
 import { getLanguage } from "../services/engine/languageRegistry.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { createAppError } from "../utils/errors.js";
-import { findScanById } from "../models/scanModel.js";
+import { findScanById, saveScan } from "../models/scanModel.js";
 import { assertScanAccess } from "../services/accessService.js";
 
 function mapLegacyResult(result) {
@@ -188,6 +188,22 @@ export const getScanController = asyncHandler(async (req, res) => {
   const scan = await findScanById(req.params.scanId);
   await assertScanAccess(req.user, scan, "Scan could not be found.");
   res.json({ scan });
+});
+
+// Triage state (open / ignored / reviewed) lives on the stored scan so every
+// page sees the same decision. It never changes the finding's evidence.
+export const setFindingStatusController = asyncHandler(async (req, res) => {
+  const scan = await findScanById(req.params.scanId);
+  await assertScanAccess(req.user, scan, "Scan could not be found.");
+  const status = String(req.body.status || "").toLowerCase();
+  if (!["open", "ignored", "reviewed"].includes(status)) throw createAppError(400, "Status must be open, ignored or reviewed.");
+  const finding = (scan.findings || []).find((item) => item.id === req.params.findingId);
+  if (!finding) throw createAppError(404, "Finding could not be found in this scan.");
+  finding.triage = { status, by: req.user.username, at: new Date().toISOString() };
+  const legacy = (scan.bugs || []).find((item) => item.id === req.params.findingId);
+  if (legacy) legacy.triage = finding.triage;
+  await saveScan(scan);
+  res.json({ findingId: finding.id, triage: finding.triage });
 });
 
 export const getScanFindingsController = asyncHandler(async (req, res) => {

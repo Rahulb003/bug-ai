@@ -162,7 +162,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // ------------------------------------------------- diagnostics (markers + decorations)
-  let lastScan = BugWorkspace.currentScan();
+  let lastScan = await BugWorkspace.resolveScanFromUrl();
   const severityRank = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1, INFO: 0 };
   const sevClass = (s) => String(s || "info").toLowerCase();
   function severityToMonaco(sev) { const s = String(sev || "").toUpperCase(); if (s === "CRITICAL" || s === "HIGH") return monaco.MarkerSeverity.Error; if (s === "MEDIUM") return monaco.MarkerSeverity.Warning; return monaco.MarkerSeverity.Info; }
@@ -329,14 +329,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     const impact = String(f.impact || "").trim();
     const hasFix = Boolean(String(f.suggestedFix || "").trim());
     return `<article class="fcard">
-      <header><span class="fcard-ic tone-${sev}">${icon("shield")}</span><h3>${esc(f.title)}</h3><span class="ws-badge ${sev}">${esc(f.severity)}</span></header>
+      <header><span class="fcard-ic tone-${sev}">${icon("shield")}</span><h3>${esc(f.title)}</h3>${f.triage && f.triage.status !== "open" ? `<span class="ws-badge pg-triage ${esc(f.triage.status)}">${esc(f.triage.status)}</span>` : ""}<span class="ws-badge ${sev}">${esc(f.severity)}</span></header>
       <div class="fcard-meta"><span>${icon("clock")} ${esc(f.file || "snippet")}:${f.line || "?"}</span><span class="ws-badge">${esc(f.category || "quality")}</span><span class="ws-badge">${esc(f.source || "deterministic")}</span></div>
       <h4>Description</h4><p>${esc(f.description || f.explanation || f.title)}</p>
       ${evidence ? `<h4>Evidence</h4><pre class="ws-code">${esc(evidence)}</pre>` : ""}
       ${impact ? `<h4>Impact</h4><ul><li>${esc(impact)}</li></ul>` : ""}
       <h4>Recommendation</h4><p>${esc(f.recommendation || f.fix || "Review the affected code.")}</p>
       ${hasFix ? `<h4>Suggested Fix</h4><pre class="ws-code ws-code-ok">${esc(f.suggestedFix)}</pre>
-      <div class="fcard-actions"><button class="ws-button primary" data-apply="${esc(f.id)}">${icon("review")} Apply Fix</button><button class="ws-button" data-optimize="${esc(f.id)}">${icon("gauge")} View in Optimizer</button></div>` : ""}
+      <div class="fcard-actions"><button class="ws-button primary" data-apply="${esc(f.id)}">${icon("review")} Apply Fix</button><button class="ws-button" data-diff="${esc(f.id)}">View Diff</button></div>` : ""}
+      <div class="fcard-actions fcard-actions-secondary"><button class="ws-button" data-explainf="${esc(f.id)}">Explain</button><button class="ws-button" data-optimize="${esc(f.id)}">${icon("gauge")} Optimizer</button><button class="ws-button" data-gentest="${esc(f.id)}">Generate Test</button><button class="ws-button" data-triage="${esc(f.id)}" data-status="${f.triage?.status === "reviewed" ? "open" : "reviewed"}">${f.triage?.status === "reviewed" ? "Reopen" : "Mark reviewed"}</button><button class="ws-button" data-triage="${esc(f.id)}" data-status="${f.triage?.status === "ignored" ? "open" : "ignored"}">${f.triage?.status === "ignored" ? "Unignore" : "Ignore"}</button></div>
       <details class="fcard-more"><summary>${icon("deps")} Additional Information ${icon("chevron")}</summary>
         <p class="ws-muted">Rule ${esc(f.rule || "n/a")} · confidence ${Math.round(Number(f.confidence || 0) * (Number(f.confidence || 0) <= 1 ? 100 : 1))}% (${esc(f.confidenceLevel || "n/a")})</p>
         <p class="ws-muted">${esc(f.confidenceReason || "No confidence rationale recorded.")}</p>
@@ -354,6 +355,25 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   function wireFindingActions(f) {
     const panel = document.querySelector("[data-rp=findings]");
+    panel.querySelector("[data-diff]")?.addEventListener("click", () => {
+      // The Optimizer's diff view, seeded with just this finding's patch.
+      localStorage.setItem("bugai_optimizer_input", JSON.stringify({ code: code(), filename: name(), language: lang(), focusFinding: f.id }));
+      location.href = "optimizer.html";
+    });
+    panel.querySelector("[data-explainf]")?.addEventListener("click", () => { editor.revealLineInCenter(f.line || 1); editor.setSelection(new monaco.Range(f.line || 1, 1, f.line || 1, editor.getModel().getLineMaxColumn(f.line || 1))); showRight("explainer"); runExplain(false); });
+    panel.querySelector("[data-gentest]")?.addEventListener("click", () => {
+      localStorage.setItem("bugai_studio_input", JSON.stringify({ code: code(), filename: name(), language: lang(), focusFinding: f.id }));
+      location.href = "tests.html";
+    });
+    panel.querySelectorAll("[data-triage]").forEach((b) => b.addEventListener("click", async () => {
+      try {
+        const triage = await BugWorkspace.setFindingStatus(f.id, b.dataset.status);
+        (lastScan.findings || []).forEach((x) => { if (x.id === f.id) x.triage = triage; });
+        renderFindings(lastScan); showFinding(f.id);
+        logLine(`Finding "${f.title}" marked ${triage.status}`, triage.status === "open" ? "info" : "warn");
+        App.showToast(`Marked ${triage.status}.`, "success", "Triage");
+      } catch (error) { App.showToast(error.message, "error", "Triage not saved"); }
+    }));
     panel.querySelector("[data-apply]")?.addEventListener("click", () => applyFixToBuffer(f));
     panel.querySelector("[data-optimize]")?.addEventListener("click", () => {
       localStorage.setItem("bugai_optimizer_input", JSON.stringify({ code: code(), filename: name(), language: lang() }));
@@ -366,7 +386,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("st-findings-count").textContent = String(findings.length);
     document.getElementById("st-problems-count").textContent = String(findings.length);
     // Problems table
-    document.querySelector("[data-bp=problems]").innerHTML = findings.length ? `<table class="st-problems"><thead><tr><th>Severity</th><th>Message</th><th>File</th><th>Line</th><th>Category</th></tr></thead><tbody>${findings.map((f) => `<tr data-prob="${esc(f.id)}"><td><span class="sev sev-${sevClass(f.severity)}">${icon("shield")}${esc(f.severity)}</span></td><td><b>${esc(f.title)}</b><small>${esc(String(f.description || "").slice(0, 70))}${String(f.description || "").length > 70 ? "…" : ""}</small></td><td>${esc(f.file || "snippet")}</td><td>${f.line || "?"}</td><td>${esc(f.category || "quality")}</td></tr>`).join("")}</tbody></table>` : `<div class="ws-empty st-mini">No detected issues from available checks.</div>`;
+    const showIgnored = document.getElementById("st-show-ignored")?.checked;
+    const listed = findings.filter((f) => showIgnored || f.triage?.status !== "ignored");
+    const hiddenCount = findings.length - listed.length;
+    document.querySelector("[data-bp=problems]").innerHTML = findings.length ? `<div class="st-problems-bar"><label class="op-check"><input type="checkbox" id="st-show-ignored" ${showIgnored ? "checked" : ""}> Show ignored${hiddenCount ? ` (${hiddenCount})` : ""}</label></div><table class="st-problems"><thead><tr><th>Severity</th><th>Message</th><th>File</th><th>Line</th><th>Category</th></tr></thead><tbody>${listed.map((f) => `<tr data-prob="${esc(f.id)}" class="${f.triage?.status ? "triage-" + esc(f.triage.status) : ""}"><td><span class="sev sev-${sevClass(f.severity)}">${icon("shield")}${esc(f.severity)}</span></td><td><b>${esc(f.title)}</b>${f.triage && f.triage.status !== "open" ? ` <span class="ws-badge pg-triage ${esc(f.triage.status)}">${esc(f.triage.status)}</span>` : ""}<small>${esc(String(f.description || "").slice(0, 70))}${String(f.description || "").length > 70 ? "…" : ""}</small></td><td>${esc(f.file || "snippet")}</td><td>${f.line || "?"}</td><td>${esc(f.category || "quality")}</td></tr>`).join("")}</tbody></table>` : `<div class="ws-empty st-mini">No detected issues from available checks.</div>`;
+    document.getElementById("st-show-ignored")?.addEventListener("change", () => renderFindings(scan));
     document.querySelectorAll("[data-prob]").forEach((row) => row.onclick = () => {
       const f = findings.find((x) => x.id === row.dataset.prob); if (!f) return;
       const target = openFiles.findIndex((o) => o.name === f.file);
@@ -586,7 +610,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     else if (hit.line) { editor.revealLineInCenter(hit.line); editor.setPosition({ lineNumber: hit.line, column: 1 }); editor.focus(); }
   });
 
-  openTab({ name: "scratch.py", content: "def example(value):\n    return eval(value) / 0", language: "auto" });
+  // Continuity: a loaded scan opens the source it was run on. A code scan is one
+  // tab; a project/GitHub scan stored its files as "// FILE:" sections, which
+  // are split back into tabs. Only when there is no scan does the sample appear.
+  function openScanSource(scan) {
+    if (!scan || !scan.sourceCode) return false;
+    if (scan.inputType === "code") { openTab({ name: scan.sourceName || "scanned.txt", content: scan.sourceCode, language: scan.language || "auto" }); return true; }
+    const sections = String(scan.sourceCode).split(/^\/\/ FILE: (.+)$/m);
+    let opened = 0;
+    for (let i = 1; i < sections.length && opened < 8; i += 2) {
+      const fileName = sections[i].trim(); const content = (sections[i + 1] || "").replace(/^\n/, "").replace(/\n\n$/, "");
+      if (fileName) { openTab({ name: fileName, content, language: "auto" }); opened += 1; }
+    }
+    if (!opened) App.showToast("Historical source unavailable for this scan.", "warning", "Cannot restore");
+    return opened > 0;
+  }
+  if (!openScanSource(lastScan)) openTab({ name: "scratch.py", content: "def example(value):\n    return eval(value) / 0", language: "auto" });
   if (currentProjectId) await loadProjectFiles(currentProjectId);
   if (lastScan?.findings) renderFindings(lastScan);
 

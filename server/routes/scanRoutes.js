@@ -17,6 +17,7 @@ import {
   projectTestsController,
   getScanController,
   getScanFindingsController,
+  setFindingStatusController,
   getScanVerificationController
 } from "../controllers/scanController.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -40,6 +41,7 @@ router.get("/projects/:projectId/tests", requireAuth, projectTestsController);
 router.post("/project/analyze", requireAuth, uploadProjectController);
 router.get("/scans/:scanId", requireAuth, getScanController);
 router.get("/scans/:scanId/findings", requireAuth, getScanFindingsController);
+router.post("/scans/:scanId/findings/:findingId/status", requireAuth, setFindingStatusController);
 router.get("/scans/:scanId/verification", requireAuth, getScanVerificationController);
 router.post("/legacy/predict", legacyPredictController);
 router.post("/legacy/fix", legacyFixController);
