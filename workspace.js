@@ -36,7 +36,7 @@ const BugWorkspace = (() => {
     ["Understand", [["architecture.html", "Architecture", "arch"], ["dependencies.html", "Dependencies", "deps"], ["assistant.html", "AI Assistant", "bot"]]],
     ["Development", [["git.html", "Git / GitHub", "git"]]],
     ["Insights", [["analytics.html", "Analytics", "chart"], ["history.html", "History", "clock"]]],
-    ["Settings", [["settings.html", "Settings", "gear"], ["admin.html", "Admin", "user"]]]
+    ["System", [["settings.html", "Settings", "gear"], ["admin.html", "Admin", "user"]]]
   ];
 
   const pageFile = `${page}.html`;
@@ -78,6 +78,7 @@ const BugWorkspace = (() => {
   function renderShell() {
     const root = document.getElementById("workspace-shell"); if (!root) return;
     root.classList.add("ws-shell"); // workspace.css defines the sidebar/main grid on this class.
+    try { if (localStorage.getItem("bugai_sidebar") === "collapsed") root.classList.add("collapsed"); } catch { /* ignore */ }
     root.innerHTML = `
       <aside class="ws-sidebar">
         <a class="ws-brand" href="dashboard.html">
@@ -85,6 +86,7 @@ const BugWorkspace = (() => {
           <span class="ws-brand-text"><b>BUG AI</b><small>Code Smarter. Build Safer.</small></span>
         </a>
         <nav class="ws-nav">${links.map(([title, group]) => `${title ? `<div class="ws-nav-title">${title}</div>` : ""}${group.map(([href, label, ic]) => `<a class="${href === pageFile ? "active" : ""}" href="${href}">${icon(ic)}<span>${label}</span></a>`).join("")}`).join("")}</nav>
+        <button class="ws-collapse" id="ws-collapse" type="button" aria-label="Collapse sidebar" title="Collapse sidebar">${icon("chevron")}</button>
         <button class="ws-profile" id="ws-profile" type="button" aria-haspopup="menu">
           <span class="ws-avatar" id="ws-profile-avatar">··</span>
           <span class="ws-profile-text"><b id="ws-profile-name">Loading…</b><small id="ws-profile-email"></small></span>
@@ -129,6 +131,11 @@ const BugWorkspace = (() => {
   function toggleMenu(menu) { const open = menu.hidden; closeMenus(menu); menu.hidden = !open; }
 
   async function wireTopbar() {
+    document.getElementById("ws-collapse")?.addEventListener("click", () => {
+      const root = document.getElementById("workspace-shell");
+      const collapsed = root.classList.toggle("collapsed");
+      try { localStorage.setItem("bugai_sidebar", collapsed ? "collapsed" : "open"); } catch { /* ignore */ }
+    });
     document.addEventListener("click", (event) => { if (!event.target.closest(".ws-menu, #ws-project-button, #ws-bell, #ws-account, #ws-profile, .ws-search")) closeMenus(); });
 
     const search = document.getElementById("ws-search");
@@ -206,7 +213,7 @@ const BugWorkspace = (() => {
   async function refreshProjectLabel() {
     const label = document.getElementById("ws-project-label"); if (!label) return;
     const id = selectedProject();
-    if (!id) { label.textContent = "No project"; renderBreadcrumb(); return; }
+    if (!id) { label.textContent = selectedFile() ? "Live Snippet" : "No project"; label.title = selectedFile() ? "Working on a standalone snippet, not a stored project" : "No project selected"; renderBreadcrumb(); return; }
     const projects = await loadProjectsCached();
     label.textContent = projects.find((p) => p.id === id)?.name || id;
     renderBreadcrumb();
@@ -252,7 +259,7 @@ const BugWorkspace = (() => {
   function renderBreadcrumb(activeFile) {
     const bar = document.getElementById("ws-breadcrumb"); if (!bar) return;
     const file = activeFile !== undefined ? activeFile : selectedFile();
-    const projectName = projectsCache.find((p) => p.id === selectedProject())?.name || (selectedProject() ? selectedProject() : null);
+    const projectName = projectsCache.find((p) => p.id === selectedProject())?.name || (selectedProject() ? "Project" : (file ? "Live Snippet" : null));
     const crumbs = [`<a href="projects.html">Projects</a>`];
     if (projectName) crumbs.push(`<span>${esc(projectName)}</span>`);
     if (file) String(file).split("/").forEach((part, index, all) => {
@@ -292,7 +299,7 @@ const BugWorkspace = (() => {
     }));
   }
 
-  function renderContext() { renderBreadcrumb(); }
+  function renderContext() { renderBreadcrumb(); refreshProjectLabel(); }
 
   function findingCard(item) {
     return `<article class="finding ${String(item.severity || "info").toLowerCase()}"><div><span class="ws-badge ${String(item.severity || "info").toLowerCase()}">${esc(item.severity)}</span> <span class="ws-badge">${esc(item.source || "deterministic")}</span></div><strong>${esc(item.title)}</strong><p>${esc(item.description || item.explanation || "")}</p><p class="ws-muted">${esc(item.file || "snippet")}:${item.line || "?"} · confidence ${Math.round(Number(item.confidence || 0) * (Number(item.confidence || 0) <= 1 ? 100 : 1))}%</p><p><b>Evidence:</b> ${esc(Array.isArray(item.evidence) ? item.evidence.join(" ") : item.whyItHappens || "Unavailable")}</p><p><b>Recommendation:</b> ${esc(item.recommendation || item.fix || "Review the code.")}</p></article>`;

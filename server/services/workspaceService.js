@@ -66,7 +66,9 @@ function buildLeaderboard(users, scans) {
     const entry = map.get(scan.userId);
     if (!entry) return;
     entry.scans += 1;
-    entry.score += Math.max(0, 100 - scan.riskScore) + Math.max(0, scan.codeQualityScore);
+    // Activity ranking only: scans run and their risk. codeQualityScore is never
+    // computed, so it no longer feeds the score as a silent 0.
+    entry.score += Math.max(0, 100 - scan.riskScore);
     entry.avgRisk += scan.riskScore;
   });
 
@@ -115,7 +117,10 @@ export async function getWorkspaceOverview(user) {
     },
     gamification: {
       bugFreeStreak: lowRiskStreak,
-      qualityRank: latestScan ? Math.max(1, 100 - latestScan.riskScore) : 0,
+      // "100 - riskScore" is not a quality measurement; nothing here computes one.
+      qualityRank: null,
+      qualityStatus: "not_measured",
+      latestRisk: latestScan ? { score: latestScan.riskScore, level: latestScan.riskLevel } : null,
       achievements: buildAchievements(sortedScans)
     },
     notifications: notifications.slice(0, 8),

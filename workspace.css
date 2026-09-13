@@ -362,3 +362,21 @@ body.workspace-page { background:var(--ws-bg); color:var(--ws-text); margin:0; m
    has an author display rule (the right-panel panes are display:flex) stays
    visible when hidden is set, so tab switching only appeared to work. */
 [hidden] { display:none !important; }
+
+/* ---- sidebar collapse ---------------------------------------------- */
+.ws-shell { transition:grid-template-columns .18s ease; }
+.ws-collapse { border:0; border-top:1px solid var(--ws-line); background:transparent; color:var(--ws-muted); cursor:pointer; display:flex; align-items:center; justify-content:flex-end; padding:8px 14px; width:100%; }
+.ws-collapse:hover { color:var(--ws-text); background:var(--ws-panel-2); }
+.ws-collapse .ws-i { transform:rotate(180deg); transition:transform .18s ease; }
+.ws-shell.collapsed { grid-template-columns:64px minmax(0,1fr); }
+.ws-shell.collapsed .ws-brand-text, .ws-shell.collapsed .ws-nav-title, .ws-shell.collapsed .ws-nav a span, .ws-shell.collapsed .ws-profile-text, .ws-shell.collapsed .ws-profile-caret { display:none; }
+.ws-shell.collapsed .ws-brand { justify-content:center; padding:18px 0 14px; }
+.ws-shell.collapsed .ws-nav { padding:0 8px 12px; }
+.ws-shell.collapsed .ws-nav a { justify-content:center; padding:10px 0; }
+.ws-shell.collapsed .ws-nav a.active::before { left:-8px; }
+.ws-shell.collapsed .ws-collapse { justify-content:center; padding:8px 0; }
+.ws-shell.collapsed .ws-collapse .ws-i { transform:rotate(0deg); }
+.ws-shell.collapsed .ws-profile { justify-content:center; padding:12px 0; }
+@media (prefers-reduced-motion: reduce) { .ws-shell, .ws-collapse .ws-i { transition:none; } }
+.db-metric .ws-metric { font-variant-numeric:tabular-nums; }
+.selected-row td { background:color-mix(in srgb,var(--ws-brand) 8%,transparent); }
