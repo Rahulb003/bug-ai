@@ -2,7 +2,7 @@
 
 BUG AI is an evidence-led code workspace for analyzing, understanding, reviewing, and managing source code. It preserves the original dashboard, authentication, workspaces, history, analytics, notifications, administration, multi-file project import, and public-GitHub analysis while adding a connected multi-page developer workspace.
 
-Projects are imported as a list of files (`POST /api/upload-project` takes `{ files: [{ name, content }] }`). **There is no ZIP handling yet** — no archive is unpacked anywhere in the codebase.
+Projects can be created from a file list (`POST /api/projects`), imported from a ZIP archive (`POST /api/projects/import-zip`, unpacked server-side with zip-slip, binary and size guards, dropped entries reported), imported from a public GitHub repository (`POST /api/projects/import-github`, read-only), and downloaded as a ZIP (`GET /api/projects/:id/export`).
 
 ## Run
 

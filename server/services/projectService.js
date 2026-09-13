@@ -4,6 +4,8 @@ import { createAppError } from "../utils/errors.js";
 import { generateId } from "../utils/hash.js";
 import { analyseProject } from "./engine/projectAnalyzer.js";
 import { analyzeProjectWithEngine } from "./engine/analysisPipeline.js";
+import { extractArchive, stripCommonRoot, buildArchive } from "./archiveService.js";
+import { fetchGithubRepositoryFiles } from "./engine/githubClient.js";
 
 function summary(project) {
   return {
@@ -78,3 +80,39 @@ export async function analyzeStoredProject(user, id, payload = {}) {
 export async function projectDependencies(user, id) { return { dependencies: (await requireProject(user, id)).metadata.dependencies }; }
 export async function projectArchitecture(user, id) { return { architecture: (await requireProject(user, id)).metadata.architecture }; }
 export async function deleteProject(user, id) { await requireProject(user, id); await removeProject(id); return { deleted: true }; }
+
+// ZIP import: the archive becomes the same file list createProject accepts, so
+// every existing cap and ignore rule applies. What was dropped is reported.
+export async function importProjectFromArchive(user, payload) {
+  const extracted = extractArchive(payload.archive || payload.zip || payload.zipBase64);
+  const files = stripCommonRoot(extracted.files);
+  const before = files.length;
+  const result = await createProject(user, { name: payload.name || payload.filename?.replace(/\.zip$/i, "") || "Imported archive", files });
+  return {
+    ...result,
+    import: {
+      source: "zip",
+      entriesInArchive: extracted.entryCount,
+      textFilesFound: before,
+      filesKept: result.project.fileCount,
+      skipped: { ...extracted.skipped, unsupportedOrCapped: before - result.project.fileCount }
+    }
+  };
+}
+
+// GitHub import: only public repositories, read-only, through the existing
+// client with its own path and size caps.
+export async function importProjectFromGithub(user, payload) {
+  const repoUrl = String(payload.repoUrl || "").trim();
+  if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(repoUrl)) throw createAppError(400, "Provide a public repository URL like https://github.com/owner/repository.");
+  const fetched = await fetchGithubRepositoryFiles(repoUrl);
+  const files = (fetched.files || fetched || []).map((f) => ({ name: f.path || f.name, content: f.content }));
+  const name = payload.name || repoUrl.split("/").slice(-2).join("/");
+  const result = await createProject(user, { name, files });
+  return { ...result, import: { source: "github", repoUrl, filesFetched: files.length, filesKept: result.project.fileCount } };
+}
+
+export async function exportProjectArchive(user, id) {
+  const project = await requireProject(user, id);
+  return { filename: `${project.name.replace(/[^\w.-]+/g, "_") || "project"}.zip`, buffer: buildArchive(project.files) };
+}

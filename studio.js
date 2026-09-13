@@ -19,7 +19,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           <button class="st-tool" id="ex-new-folder" title="New folder">${icon("folder")}</button>
           <button class="st-tool" id="ex-delete" title="Delete selected file">${icon("close")}</button>
           <button class="st-tool" id="ex-search" title="Search in explorer">${icon("search")}</button>
-          <button class="st-tool" id="ex-export" title="Export project as JSON">${icon("deps")}</button>
+          <button class="st-tool" id="ex-upload" title="Upload files or a .zip">${icon("arch")}</button>
+          <button class="st-tool" id="ex-export" title="Download project as ZIP">${icon("deps")}</button>
           <button class="st-tool" id="ex-refresh" title="Refresh">${icon("gauge")}</button>
         </div>
         <input class="st-filter" id="ex-filter" placeholder="Filter files…" hidden>
@@ -259,12 +260,43 @@ document.addEventListener("DOMContentLoaded", async () => {
     logLine(`Closed ${selectedTreeFile} in the editor; the stored file is unchanged`, "warn");
     App.showToast("Closed in the editor. The API has no per-file delete, so the stored file is unchanged — delete the whole project from Projects.", "warning", "Not deleted on the server");
   };
-  document.getElementById("ex-export").onclick = () => {
-    // projectService has no zip pipeline, so this exports the file list as JSON
-    // rather than implying an archive feature that does not exist.
-    if (!projectFiles.length) return App.showToast("Open a project first.", "warning", "Nothing to export");
-    download(`${(document.getElementById("ws-project-label")?.textContent || "project")}-files.json`, JSON.stringify(projectFiles, null, 2));
-    App.showToast("Exported as JSON (zip export is not implemented).", "info", "Exported");
+  // Export the stored project as a real zip via GET /projects/:id/export. The
+  // token has to travel in a header, so this cannot be a plain <a href>.
+  document.getElementById("ex-export").onclick = async () => {
+    if (!currentProjectId) return App.showToast("Open a project first.", "warning", "Nothing to export");
+    try {
+      const response = await fetch(`/api/projects/${currentProjectId}/export`, { headers: { Authorization: `Bearer ${localStorage.getItem("bugzero_token")}` } });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Export failed");
+      const name = (response.headers.get("content-disposition") || "").match(/filename="([^"]+)"/)?.[1] || "project.zip";
+      const a = document.createElement("a"); a.href = URL.createObjectURL(await response.blob()); a.download = name; a.click(); URL.revokeObjectURL(a.href);
+      logLine(`Exported ${name}`, "ok");
+    } catch (error) { App.showToast(error.message, "error", "Export failed"); }
+  };
+
+  // Upload: individual files are added to the stored project one PUT each;
+  // a .zip goes to the server-side importer and becomes a new project.
+  const uploadInput = document.createElement("input");
+  uploadInput.type = "file"; uploadInput.multiple = true; uploadInput.accept = ".zip,application/zip,text/*,.js,.ts,.py,.java,.go,.rs,.rb,.php,.c,.cpp,.cs,.kt,.swift,.sql,.sh,.html,.css,.json,.md,.yml,.yaml,.toml";
+  uploadInput.hidden = true; document.body.appendChild(uploadInput);
+  document.getElementById("ex-upload").onclick = () => { uploadInput.value = ""; uploadInput.click(); };
+  uploadInput.onchange = async () => {
+    const files = [...uploadInput.files]; if (!files.length) return;
+    const zip = files.find((f) => /\.zip$/i.test(f.name));
+    try {
+      if (zip) {
+        const archive = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = reject; r.readAsDataURL(zip); });
+        const result = await App.api("/projects/import-zip", { method: "POST", body: { name: zip.name.replace(/\.zip$/i, ""), archive } });
+        BugWorkspace.setContext({ projectId: result.project.id, file: "" }); BugWorkspace.cacheClear("projects");
+        logLine(`Imported ${zip.name}: ${result.import.filesKept} file(s) kept`, "ok");
+        App.showToast(`${result.import.filesKept} file(s) imported as "${result.project.name}".`, "success", "ZIP imported");
+        window.dispatchEvent(new CustomEvent("bugai:project", { detail: { projectId: result.project.id } }));
+        return;
+      }
+      if (!currentProjectId) { for (const f of files) openTab({ name: f.name, content: await f.text(), language: "auto", dirty: true }); return App.showToast("Opened in the editor only. Select a project to store files.", "info", "No project"); }
+      for (const f of files.slice(0, 50)) await App.api(`/projects/${currentProjectId}/files`, { method: "PUT", body: { name: f.webkitRelativePath || f.name, content: (await f.text()).slice(0, 200000) } });
+      logLine(`Uploaded ${files.length} file(s) to the project`, "ok");
+      await loadProjectFiles(currentProjectId);
+    } catch (error) { App.showToast(error.message, "error", "Upload failed"); }
   };
   function download(filename, text) {
     const a = document.createElement("a");
