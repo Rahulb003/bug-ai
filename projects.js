@@ -28,6 +28,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function render() {
     let projects;
     try { projects = await BugWorkspace.loadProjects(); } catch (error) { document.getElementById("projects-list").innerHTML = BugWorkspace.emptyState({ title: "Could not load projects", body: error.message }); return; }
+    document.getElementById("projects-list").classList.toggle("ws-empty", !projects.length);
     document.getElementById("projects-list").innerHTML = projects.length
       ? '<table class="ws-table"><thead><tr><th>Name</th><th>Languages</th><th>Files</th><th>Last analysis</th><th></th></tr></thead><tbody>' + projects.map((p) => "<tr" + (p.id === BugWorkspace.selectedProject() ? ' class="selected-row"' : "") + "><td>" + esc(p.name) + "</td><td>" + esc(p.languages.join(", ") || "Unknown") + "</td><td>" + p.fileCount + "</td><td>" + (p.lastAnalysis ? esc(String(p.lastAnalysis.verification.status).replaceAll("_", " ")) : "Not analyzed") + '</td><td><button class="ws-button" data-open="' + esc(p.id) + '">Open</button> <a class="ws-button" data-export="' + esc(p.id) + '">Download ZIP</a> <button class="ws-button danger" data-delete="' + esc(p.id) + '">Delete</button></td></tr>').join("") + "</tbody></table>"
       : BugWorkspace.emptyState({ title: "No projects yet", body: "Create one from files, upload a ZIP, or import a public GitHub repository above." });
@@ -58,6 +59,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const p = data.project;
     BugWorkspace.setContext({ projectId: id, file: "" });
     BugWorkspace.cacheClear("projects");
+    document.getElementById("project-detail").classList.remove("ws-empty");
     document.getElementById("project-detail").innerHTML = "<h3>" + esc(p.name) + '</h3><p class="ws-muted">' + p.fileCount + " files · " + esc(p.languages.join(", ") || "unknown language") + "</p><p>Manifests: " + esc(p.manifests.join(", ") || "none detected") + "</p>"
       + '<div class="ws-toolbar"><a class="ws-button primary" href="studio.html">Open Studio</a><button class="ws-button" id="analyze-project">Analyze project</button><button class="ws-button" id="export-project">Download ZIP</button><a class="ws-button" href="architecture.html">Architecture</a><a class="ws-button" href="dependencies.html">Dependencies</a><a class="ws-button" href="security.html">Security</a><a class="ws-button" href="debt.html">Technical debt</a></div><p id="project-status" class="ws-muted"></p>'
       + '<div class="ws-toolbar" style="margin-top:14px"><select class="ws-select" id="doc-kind" style="width:auto"><option value="readme">README</option><option value="api">API reference</option><option value="functions">Function docs</option><option value="architecture">Architecture doc</option></select><button class="ws-button" id="doc-generate">Generate documentation</button><button class="ws-button" id="doc-download" disabled>Download .md</button></div><div id="doc-out"></div>';

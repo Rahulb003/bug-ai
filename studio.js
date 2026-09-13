@@ -102,13 +102,24 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Editor preferences come from Settings (browser-local); defaults match the previous fixed values.
   let prefs = { editorFontSize: 13, editorMinimap: true, editorWordWrap: false, includeAiOnScan: true, confirmAiFixes: true };
   try { prefs = { ...prefs, ...(JSON.parse(localStorage.getItem("bugai_prefs") || "{}")) }; } catch { /* keep defaults */ }
+  // Editor colours follow the design tokens so the editor is part of the
+  // workspace surface rather than a foreign dark box.
+  const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const themeName = () => (document.documentElement.getAttribute("data-theme") === "light" ? "bugai-light" : "bugai-dark");
+  const defineThemes = () => {
+    monaco.editor.defineTheme("bugai-dark", { base: "vs-dark", inherit: true, rules: [{ token: "comment", foreground: "6b6b75" }, { token: "keyword", foreground: "b4a5ff" }, { token: "string", foreground: "9ad7b0" }, { token: "number", foreground: "f0b86e" }], colors: { "editor.background": "#0a0a0b", "editor.foreground": "#ededef", "editorLineNumber.foreground": "#4b4b53", "editorLineNumber.activeForeground": "#a3a3ab", "editor.lineHighlightBackground": "#111113", "editor.selectionBackground": "#2b2b5a", "editorGutter.background": "#0a0a0b", "editorIndentGuide.background1": "#1b1b20", "editorCursor.foreground": "#ededef", "editorWidget.background": "#16161a", "editorWidget.border": "#26262c", "minimap.background": "#0a0a0b", "scrollbarSlider.background": "#ffffff1a" } });
+    monaco.editor.defineTheme("bugai-light", { base: "vs", inherit: true, rules: [], colors: { "editor.background": "#f7f7f8", "editor.lineHighlightBackground": "#efeff1", "editorGutter.background": "#f7f7f8", "editorLineNumber.foreground": "#b4b4bc" } });
+  };
+  defineThemes();
   const editor = monaco.editor.create(document.getElementById("st-editor"), {
     automaticLayout: true,
-    theme: document.documentElement.getAttribute("data-theme") === "light" ? "vs" : "vs-dark",
+    theme: themeName(),
+    fontFamily: cssVar("--font-mono") || "JetBrains Mono, Consolas, monospace",
+    fontLigatures: false, lineHeight: 21, padding: { top: 12 }, renderLineHighlight: "line", smoothScrolling: true, cursorBlinking: "smooth", roundedSelection: true,
     minimap: { enabled: prefs.editorMinimap !== false }, scrollBeyondLastLine: false, fontSize: Number(prefs.editorFontSize) || 13, glyphMargin: true,
     wordWrap: prefs.editorWordWrap ? "on" : "off"
   });
-  new MutationObserver(() => monaco.editor.setTheme(document.documentElement.getAttribute("data-theme") === "light" ? "vs" : "vs-dark")).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  new MutationObserver(() => monaco.editor.setTheme(themeName())).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
   const code = () => editor.getModel()?.getValue() || "";
   const name = () => openFiles[activeIndex]?.name || "scratch.py";
@@ -439,6 +450,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   document.getElementById("act-analyze").onclick = analyze;
+  BugWorkspace.registerCommands([
+    { group: "Studio", label: "Analyze current file", icon: "studio", sub: "Deterministic + AI analysis of the open file", run: () => document.getElementById("act-analyze").click() },
+    { group: "Studio", label: "Fix all findings", icon: "review", sub: "Proposals for every finding with a fix", run: () => document.getElementById("act-fixall").click() },
+    { group: "Studio", label: "Fix & Verify All", icon: "shield", sub: "Analyze → fix → rescan → compare → verify", run: () => document.getElementById("act-repair").click() },
+    { group: "Studio", label: "Optimize this file", icon: "gauge", sub: "Open in the Optimizer", run: () => document.getElementById("act-optimize").click() },
+    { group: "Studio", label: "Generate tests", icon: "flask", sub: "Open in Test Lab", run: () => document.getElementById("act-tests").click() },
+    { group: "Studio", label: "Explain file", icon: "bot", run: () => document.getElementById("more-explain").click() },
+    { group: "Studio", label: "Save file to project", icon: "folder", run: () => document.getElementById("more-save").click() }
+  ]);
 
   document.getElementById("act-fixall").onclick = async () => {
     logLine("Fix All requested");

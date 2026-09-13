@@ -14,8 +14,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     requestAnimationFrame(tick);
   }
 
-  root.innerHTML = BugPages.header({ title: "Dashboard", subtitle: "Loading project overview…", actions: "" })
-    + '<div id="db-actions" class="ws-toolbar" style="margin-bottom:16px"></div>'
+  root.innerHTML = BugPages.header({ title: "Dashboard", subtitle: "Loading project overview…", actions: '<div id="db-actions" class="ws-toolbar db-actions"></div>' })
     + '<div id="db-body"></div>';
 
   const projectId = BugWorkspace.selectedProject();
@@ -43,40 +42,40 @@ document.addEventListener("DOMContentLoaded", async () => {
     + '<a class="ws-button" href="security.html">' + icon("shield") + " Security Scan</a>"
     + '<a class="ws-button" href="tests.html">' + icon("flask") + " Generate Tests</a>";
 
-  const metric = (label, value, note, id) => '<div class="ws-card db-metric"><span class="ws-muted">' + esc(label) + '</span><div class="ws-metric" id="' + id + '">' + (value === null ? "—" : "0") + "</div>" + (note ? '<p class="ws-muted">' + esc(note) + "</p>" : "") + "</div>";
+  const stat = (label, value, note, id) => '<div class="db-stat"><span>' + esc(label) + '</span><div class="ws-metric" id="' + id + '">' + (value === null ? "—" : "0") + "</div>" + (note ? "<p>" + esc(note) + "</p>" : "") + "</div>";
+  const textStat = (label, value, note) => '<div class="db-stat"><span>' + esc(label) + '</span><div class="ws-metric is-text">' + esc(value) + "</div>" + (note ? "<p>" + esc(note) + "</p>" : "") + "</div>";
+  const section = (title, link, inner) => '<section class="pg-section"><div class="pg-section-head"><h3>' + esc(title) + "</h3>" + (link ? '<a href="' + link.href + '">' + esc(link.label) + " →</a>" : "") + "</div>" + inner + "</section>";
 
   let body = "";
   if (!latest) {
-    body += '<section class="ws-card"><h3>No analysis available yet</h3><p class="ws-muted">Open Code Studio or analyze the project to populate this overview. Nothing here is estimated.</p></section>';
+    body += BugWorkspace.emptyState({ title: "No analysis yet", body: "Run an analysis to identify bugs, security issues and optimization opportunities. Nothing on this page is estimated.", actionHref: "studio.html", actionLabel: "Open Code Studio" });
   } else {
-    body += '<div class="ws-grid cols-3">'
-      + metric("Total findings", findings.length, (latest.sourceName || "latest scan") + " · " + new Date(latest.createdAt || Date.now()).toLocaleString(), "m-total")
-      + metric("Critical + High", c.CRITICAL + c.HIGH, c.CRITICAL + " critical, " + c.HIGH + " high", "m-crit")
-      + metric("Security findings", security, "From the deterministic security analyzer", "m-sec")
-      + "</div>"
-      + '<div class="ws-grid cols-3" style="margin-top:16px">'
-      + '<div class="ws-card db-metric"><span class="ws-muted">Risk prioritisation</span><div class="ws-metric">' + esc(String(latest.riskScore ?? "—")) + '</div><p class="ws-muted">' + esc(latest.riskLevel || "") + " · severity-weighted triage, not accuracy</p></div>"
-      + '<div class="ws-card db-metric"><span class="ws-muted">Verification</span><div class="ws-metric" style="font-size:17px">' + esc(String(latest.verification?.status || "NOT RUN").replaceAll("_", " ")) + '</div><p class="ws-muted">Static checks only unless the sandbox is enabled</p></div>'
-      + '<div class="ws-card db-metric"><span class="ws-muted">Code quality · complexity · technical debt</span><div class="ws-metric" style="font-size:17px">NOT MEASURED</div><p class="ws-muted">No scoring model is configured; the pipeline does not compute these</p></div>'
+    body += '<div class="db-stats">'
+      + stat("Findings", findings.length, (latest.sourceName || "latest scan") + " · " + new Date(latest.createdAt || Date.now()).toLocaleString(), "m-total")
+      + stat("Critical + High", c.CRITICAL + c.HIGH, c.CRITICAL + " critical · " + c.HIGH + " high", "m-crit")
+      + stat("Security", security, "Deterministic security analyzer", "m-sec")
+      + textStat("Risk", String(latest.riskScore ?? "—") + (latest.riskLevel ? " · " + latest.riskLevel : ""), "Severity-weighted priority, not accuracy")
+      + textStat("Verification", String(latest.verification?.status || "NOT RUN").replaceAll("_", " "), "Static unless the sandbox is enabled")
+      + textStat("Quality · complexity · debt", "Not measured", "No scoring model is configured")
       + "</div>";
   }
 
-  body += '<div class="ws-grid cols-2" style="margin-top:16px">';
-  body += '<section class="ws-card"><h3>Active project</h3>' + (project
-    ? '<dl class="pg-kv"><dt>Name</dt><dd>' + esc(project.name) + "</dd><dt>Files</dt><dd>" + project.fileCount + "</dd><dt>Languages</dt><dd>" + esc(project.languages.join(", ") || "none detected") + "</dd><dt>Manifests</dt><dd>" + esc(project.manifests.join(", ") || "none") + "</dd><dt>Last project analysis</dt><dd>" + (project.lastAnalysis ? esc(String(project.lastAnalysis.verification?.status || "").replaceAll("_", " ")) + " · " + (project.lastAnalysis.summary?.totalFindings ?? 0) + " finding(s)" : "not analyzed") + '</dd></dl><div class="ws-toolbar" style="margin-top:12px"><a class="ws-button" href="architecture.html">Architecture</a><a class="ws-button" href="dependencies.html">Dependencies</a><a class="ws-button" href="debt.html">Technical debt</a></div>'
-    : BugWorkspace.emptyState({ title: "No project selected", body: "Select or create a project to see files, languages and manifests here.", actionHref: "projects.html", actionLabel: "Open Projects" })) + "</section>";
-  body += '<section class="ws-card"><h3>Recent scans</h3>' + (recent.length
-    ? '<table class="ws-table"><thead><tr><th>When</th><th>Source</th><th>Findings</th><th>Risk</th></tr></thead><tbody>' + recent.map((s) => "<tr><td>" + esc(new Date(s.createdAt).toLocaleString()) + "</td><td>" + esc(s.sourceName || "snippet") + "</td><td>" + (s.findings || s.bugs || []).length + '</td><td><span class="ws-badge ' + String(s.riskLevel || "low").toLowerCase() + '">' + esc(String(s.riskScore ?? "—")) + "</span></td></tr>").join("") + '</tbody></table><div class="ws-toolbar" style="margin-top:12px"><a class="ws-button" href="history.html">Full history</a><a class="ws-button" href="analytics.html">Analytics</a></div>'
-    : '<p class="ws-muted">No scans recorded yet.</p>') + "</section>";
+  body += '<div class="ws-grid cols-2" style="margin-top:8px">';
+  body += section("Active project", project ? { href: "projects.html", label: "All projects" } : null, project
+    ? '<dl class="pg-kv"><dt>Name</dt><dd>' + esc(project.name) + "</dd><dt>Files</dt><dd>" + project.fileCount + "</dd><dt>Languages</dt><dd>" + esc(project.languages.join(", ") || "none detected") + "</dd><dt>Manifests</dt><dd>" + esc(project.manifests.join(", ") || "none") + "</dd><dt>Last project analysis</dt><dd>" + (project.lastAnalysis ? esc(String(project.lastAnalysis.verification?.status || "").replaceAll("_", " ")) + " · " + (project.lastAnalysis.summary?.totalFindings ?? 0) + " finding(s)" : "not analyzed") + '</dd></dl><div class="ws-toolbar" style="margin-top:14px"><a class="ws-button" href="architecture.html">Architecture</a><a class="ws-button" href="dependencies.html">Dependencies</a><a class="ws-button" href="debt.html">Technical debt</a></div>'
+    : BugWorkspace.emptyState({ title: "No project selected", body: "Select or create a project to see files, languages and manifests here.", actionHref: "projects.html", actionLabel: "Open Projects" }));
+  body += section("Recent scans", { href: "history.html", label: "Full history" }, recent.length
+    ? '<table class="ws-table"><thead><tr><th>When</th><th>Source</th><th>Findings</th><th>Risk</th></tr></thead><tbody>' + recent.map((s) => "<tr><td>" + esc(new Date(s.createdAt).toLocaleString()) + "</td><td>" + esc(s.sourceName || "snippet") + "</td><td>" + (s.findings || s.bugs || []).length + '</td><td><span class="ws-badge ' + String(s.riskLevel || "low").toLowerCase() + '">' + esc(String(s.riskScore ?? "—")) + "</span></td></tr>").join("") + "</tbody></table>"
+    : '<p class="ws-muted">No scans recorded yet.</p>');
   body += "</div>";
 
   // Team and notifications: preserved from the previous workspace page.
   const members = overview?.workspace?.memberProfiles || [];
   const notes = overview?.notifications || [];
-  body += '<div class="ws-grid cols-2" style="margin-top:16px">';
-  body += '<section class="ws-card"><h3>Team</h3>' + (members.length ? '<ul class="ws-list">' + members.map((m) => "<li><b>" + esc(m.name) + '</b> <span class="ws-badge">' + esc(m.role) + '</span> <small class="ws-muted">' + esc(m.email) + " · " + esc(m.status) + "</small></li>").join("") + "</ul>" : '<p class="ws-muted">No workspace members loaded.</p>')
-    + '<div class="ws-toolbar" style="margin-top:12px"><input class="ws-input" id="invite-email" placeholder="teammate@example.com" style="flex:1;min-width:180px"><select class="ws-select" id="invite-role"><option value="member">Member</option><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button class="ws-button" id="invite-btn">Invite</button></div><p id="invite-status" class="ws-muted"></p></section>';
-  body += '<section class="ws-card"><h3>Recent activity</h3>' + (notes.length ? '<ul class="ws-list">' + notes.slice(0, 6).map((n) => "<li><b>" + esc(n.title) + '</b><br><small class="ws-muted">' + esc(n.message) + " · " + esc(new Date(n.createdAt).toLocaleString()) + "</small></li>").join("") + "</ul>" : '<p class="ws-muted">Activity appears here after scans complete.</p>') + "</section>";
+  body += '<div class="ws-grid cols-2">';
+  body += section("Team", null, (members.length ? '<ul class="ws-list">' + members.map((m) => "<li><b>" + esc(m.name) + '</b> <span class="ws-badge">' + esc(m.role) + '</span> <small class="ws-muted">' + esc(m.email) + " · " + esc(m.status) + "</small></li>").join("") + "</ul>" : '<p class="ws-muted">No workspace members loaded.</p>')
+    + '<div class="ws-toolbar" style="margin-top:14px"><input class="ws-input" id="invite-email" placeholder="teammate@example.com" style="flex:1;min-width:180px"><select class="ws-select" id="invite-role"><option value="member">Member</option><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button class="ws-button" id="invite-btn">Invite</button></div><p id="invite-status" class="ws-muted"></p>');
+  body += section("Recent activity", null, notes.length ? '<ul class="ws-list">' + notes.slice(0, 6).map((n) => "<li><b>" + esc(n.title) + '</b><br><small class="ws-muted">' + esc(n.message) + " · " + esc(new Date(n.createdAt).toLocaleString()) + "</small></li>").join("") + "</ul>" : '<p class="ws-muted">Activity appears here after scans complete.</p>');
   body += "</div>";
   document.getElementById("db-body").innerHTML = body;
 

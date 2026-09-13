@@ -1,0 +1,100 @@
+/* BUG AI design system — tokens.
+   One palette for every page (landing, auth, workspace). Linear supplies the
+   hierarchy: neutral dark surfaces layered by brightness, borders used
+   structurally, typography before colour. Raycast supplies the material:
+   translucent elevated layers, compact controls, keyboard affordances.
+   Colour is reserved for meaning (active, severity, success, warning, danger,
+   AI). Nothing here is decorative. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+:root {
+  color-scheme: dark;
+
+  /* surfaces: app → sidebar → surface → secondary → elevated → popover */
+  --bg-app: #0a0a0b;
+  --bg-sidebar: #0d0d0f;
+  --bg-surface: #111113;
+  --bg-surface-secondary: #16161a;
+  --bg-elevated: #1b1b20;
+  --bg-popover: rgba(26, 26, 31, 0.92);
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.08);
+
+  --text-primary: #ededef;
+  --text-secondary: #a3a3ab;
+  --text-muted: #70707a;
+  --text-disabled: #4b4b53;
+  --text-on-accent: #ffffff;
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --accent-primary: #8b8cf6;
+  --accent-primary-strong: #6f70e6;
+  --accent-secondary: #c084fc;
+  --accent-soft: rgba(139, 140, 246, 0.14);
+
+  --success: #3ecf8e;
+  --warning: #f5a524;
+  --danger: #f0565a;
+  --info: #5b9cf6;
+  --ai: #c084fc;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* spacing scale */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px;
+
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  /* legacy token bridges: existing pages keep working on the new palette */
+  --ws-bg: var(--bg-app); --ws-panel: var(--bg-surface); --ws-panel-2: var(--bg-surface-secondary); --ws-line: var(--border-subtle);
+  --ws-text: var(--text-primary); --ws-muted: var(--text-secondary); --ws-brand: var(--accent-primary);
+  --ws-danger: var(--danger); --ws-warn: var(--warning); --ws-ok: var(--success);
+  --bg: var(--bg-app); --bg-elevated: var(--bg-elevated); --bg-panel: var(--bg-surface); --surface: var(--bg-hover); --surface-strong: var(--bg-active);
+  --text: var(--text-primary); --muted: var(--text-secondary); --primary: var(--accent-primary); --primary-strong: var(--accent-primary-strong);
+  --secondary: var(--info); --accent: var(--accent-secondary); --critical: var(--danger); --shadow: var(--shadow-lg);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-app: #f7f7f8; --bg-sidebar: #f2f2f4; --bg-surface: #ffffff; --bg-surface-secondary: #f4f4f6; --bg-elevated: #ffffff; --bg-popover: rgba(255, 255, 255, 0.94);
+  --bg-hover: rgba(0, 0, 0, 0.04); --bg-active: rgba(0, 0, 0, 0.07);
+  --text-primary: #18181b; --text-secondary: #52525b; --text-muted: #8a8a94; --text-disabled: #b4b4bc;
+  --border-subtle: rgba(0, 0, 0, 0.06); --border-default: rgba(0, 0, 0, 0.10); --border-strong: rgba(0, 0, 0, 0.18);
+  --accent-primary: #5e5ee0; --accent-primary-strong: #4a4ac9; --accent-soft: rgba(94, 94, 224, 0.12);
+  --success: #15945e; --warning: #b26a00; --danger: #d63b40; --info: #2f6fd6; --ai: #8b3fd9;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08); --shadow-md: 0 8px 24px rgba(20, 20, 30, 0.12); --shadow-lg: 0 24px 64px rgba(20, 20, 30, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+/* Base typography for the whole product. */
+html { font-family: var(--font-ui); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body { font-family: var(--font-ui); font-size: 14px; line-height: 1.5; color: var(--text-primary); background: var(--bg-app); }
+code, kbd, pre, samp, .mono { font-family: var(--font-mono); }
+::selection { background: var(--accent-soft); }
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--border-default); border: 3px solid transparent; background-clip: padding-box; border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--border-strong); background-clip: padding-box; }
+
+/* The marketing stylesheet paints a grid pattern and glow behind everything;
+   the application is a tool, not a poster. */
+body::before, body::after { display: none !important; }
+
+/* Toasts (ui.js) on the design system. */
+#toast-container { right: 20px; bottom: 20px; gap: 8px; }
+.toast { min-width: 260px; max-width: 380px; padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-default); background: var(--bg-popover); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow-md); color: var(--text-primary); font-size: 13px; line-height: 1.45; }
+.toast strong { display: block; font-weight: 600; margin-bottom: 2px; }
+.toast p, .toast span { color: var(--text-secondary); }
+.toast.success, .toast.error, .toast.warning { border-left-width: 1px; }
+.toast.success strong { color: var(--success); }
+.toast.error strong { color: var(--danger); }
+.toast.warning strong { color: var(--warning); }

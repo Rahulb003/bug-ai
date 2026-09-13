@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+/* Fonts are loaded by design.css (Inter + JetBrains Mono). */
 
 :root {
   color-scheme: dark;
@@ -55,7 +55,7 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Plus Jakarta Sans", sans-serif;
+  font-family: var(--font-ui);
   color: var(--text);
   background:
     radial-gradient(circle at 15% 20%, rgba(86, 240, 199, 0.16), transparent 22%),
@@ -145,7 +145,7 @@ h2,
 h3,
 h4 {
   margin: 0;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--font-ui);
   letter-spacing: -0.03em;
 }
 
@@ -359,7 +359,7 @@ p {
 
 .stat-chip strong {
   display: block;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--font-ui);
   font-size: 1.6rem;
 }
 
@@ -548,7 +548,7 @@ p {
   padding: 20px;
   height: 100%;
   overflow: auto;
-  font-family: Consolas, "SFMono-Regular", monospace;
+  font-family: var(--font-mono);
   font-size: 14px;
   color: #d4dded;
 }
@@ -581,7 +581,7 @@ p {
 }
 
 .pricing-card .price {
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--font-ui);
   font-size: 2.6rem;
 }
 
@@ -811,7 +811,7 @@ select {
   resize: vertical;
   color: #d4dded;
   background: transparent;
-  font-family: Consolas, "SFMono-Regular", monospace;
+  font-family: var(--font-mono);
   font-size: 14px;
 }
 
@@ -843,7 +843,7 @@ select {
   display: block;
   font-size: 2rem;
   margin-top: 10px;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--font-ui);
 }
 
 .badge-row,
@@ -927,7 +927,7 @@ select {
   color: #d4dded;
   font-size: 13px;
   overflow: auto;
-  font-family: Consolas, "SFMono-Regular", monospace;
+  font-family: var(--font-mono);
 }
 
 .history-grid,
@@ -1025,7 +1025,7 @@ select {
 
 .cluster-counter strong {
   display: block;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--font-ui);
   font-size: 1.2rem;
 }
 
@@ -1063,7 +1063,7 @@ select {
 
 .cluster-tab strong {
   font-size: 0.98rem;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--font-ui);
 }
 
 .cluster-tab:hover {
@@ -1154,7 +1154,7 @@ select {
 .cluster-metric-card strong {
   display: block;
   font-size: 1.9rem;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: var(--font-ui);
 }
 
 .cluster-status-row,

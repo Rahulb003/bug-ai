@@ -59,21 +59,21 @@ body.m-leaving .ws-content { animation: m-page-out var(--m-fast) var(--m-out) bo
 #ws-project-menu { transform-origin: top left; }
 .st-bottom, .op-hunk, .fcard, .rp-mod { animation: m-fade var(--m-base) var(--m-ease) both; }
 .tree-row { animation: m-fade var(--m-fast) var(--m-ease) both; }
-:focus-visible { outline: 2px solid var(--ws-brand); outline-offset: 2px; border-radius: 6px; }
+:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; border-radius: 6px; }
 
 /* ---- toast ------------------------------------------------------------------ */
 .toast, .ws-toast { animation: m-toast-in var(--m-slow) var(--m-ease) both; }
 @keyframes m-toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 /* ---- startup ------------------------------------------------------------------ */
-.boot { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: #0b1220; color: #eef3ff; overflow: hidden; }
+.boot { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: var(--bg-app, #0a0a0b); color: var(--text-primary, #ededef); overflow: hidden; }
 .boot.is-done { pointer-events: none; animation: m-fade var(--m-slow) var(--m-out) reverse both; }
 .boot-mark { display: grid; place-items: center; gap: 12px; text-align: center; animation: m-scale 420ms var(--m-ease) both; }
-.boot-mark b { font-size: clamp(44px, 8vw, 84px); letter-spacing: .06em; font-weight: 800; line-height: 1; }
-.boot-mark small { font-size: clamp(11px, 1.4vw, 14px); letter-spacing: .28em; color: #8fa3c7; font-weight: 700; opacity: 0; animation: m-fade 380ms var(--m-ease) 420ms both; }
-.boot-beam { position: absolute; left: 0; right: 0; height: 2px; top: 50%; background: linear-gradient(90deg, transparent, #70a5ff, transparent); opacity: 0; animation: m-boot-beam 520ms var(--m-ease) 640ms both; }
+.boot-mark b { font-size: clamp(40px, 7vw, 72px); letter-spacing: -0.02em; font-weight: 600; line-height: 1; }
+.boot-mark small { font-size: clamp(11px, 1.2vw, 13px); letter-spacing: .18em; color: var(--text-muted, #70707a); font-weight: 500; opacity: 0; animation: m-fade 380ms var(--m-ease) 420ms both; }
+.boot-beam { position: absolute; left: 0; right: 0; height: 2px; top: 50%; background: linear-gradient(90deg, transparent, var(--accent-primary, #8b8cf6), transparent); opacity: 0; animation: m-boot-beam 520ms var(--m-ease) 640ms both; }
 @keyframes m-boot-beam { 0% { opacity: 0; transform: translateY(-40px) scaleX(.2); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(40px) scaleX(1); } }
 .boot.is-settling .boot-mark { animation: m-boot-settle 460ms var(--m-ease) both; }
 @keyframes m-boot-settle { to { transform: translate(var(--boot-dx, 0px), var(--boot-dy, 0px)) scale(var(--boot-scale, .4)); opacity: 0; } }
-.boot-skip { position: absolute; right: 18px; bottom: 16px; border: 1px solid #243250; background: transparent; color: #8fa3c7; border-radius: 8px; padding: 7px 12px; cursor: pointer; font: inherit; font-size: 12px; }
-.boot-skip:hover { color: #eef3ff; }
+.boot-skip { position: absolute; right: 18px; bottom: 16px; border: 1px solid var(--border-default, #2a2a30); background: transparent; color: var(--text-muted, #70707a); border-radius: 6px; padding: 6px 11px; cursor: pointer; font: inherit; font-size: 12px; }
+.boot-skip:hover { color: var(--text-primary, #ededef); }

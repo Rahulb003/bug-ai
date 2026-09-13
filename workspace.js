@@ -26,12 +26,16 @@ const BugWorkspace = (() => {
     chevron: '<path d="m9 6 6 6-6 6"/>',
     caret: '<path d="m6 9 6 6 6-6"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
-    lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'
+    lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    arrow: '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
+    logout: '<path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="m15 8 4 4-4 4M19 12H9"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+    sidebar: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>'
   };
   const icon = (name, cls = "") => `<svg class="ws-i ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[name] || ""}</svg>`;
 
   const links = [
-    ["", [["dashboard.html", "Dashboard", "home"], ["studio.html", "Code Studio", "studio"], ["projects.html", "Projects", "folder"]]],
+    ["Workspace", [["dashboard.html", "Dashboard", "home"], ["studio.html", "Code Studio", "studio"], ["projects.html", "Projects", "folder"]]],
     ["Analyze", [["analyzer.html", "Bug Analyzer", "bug"], ["optimizer.html", "Optimizer", "gauge"], ["security.html", "Security Center", "shield"], ["tests.html", "Test Lab", "flask"], ["review.html", "Code Review", "review"]]],
     ["Understand", [["architecture.html", "Architecture", "arch"], ["dependencies.html", "Dependencies", "deps"], ["assistant.html", "AI Assistant", "bot"]]],
     ["Development", [["git.html", "Git / GitHub", "git"]]],
@@ -52,6 +56,7 @@ const BugWorkspace = (() => {
   const esc = (value) => App.escapeHtml(value);
 
   let projectsCache = [];
+  let projectsFailed = false; // true when /projects could not be fetched, so a missing id is unknown rather than gone
   let profileCache = null;
   let notificationsCache = [];
 
@@ -95,15 +100,13 @@ const BugWorkspace = (() => {
       </aside>
       <main class="ws-main">
         <header class="ws-topbar">
+          <button class="ws-icon-button ws-nav-toggle" id="ws-nav-toggle" type="button" aria-label="Open navigation">${icon("sidebar")}</button>
           <div class="ws-project-switch">
             <button class="ws-select-button" id="ws-project-button" type="button" aria-haspopup="listbox"><span id="ws-project-label">No project</span>${icon("caret")}</button>
             <div class="ws-menu" id="ws-project-menu" hidden></div>
           </div>
           <div class="ws-search">
-            ${icon("search", "ws-search-icon")}
-            <input id="ws-search" type="search" placeholder="Search files, code, findings..." aria-label="Search files and findings" autocomplete="off">
-            <kbd>Ctrl + K</kbd>
-            <div class="ws-menu ws-search-results" id="ws-search-results" hidden></div>
+            <button class="ws-cmd-trigger" id="ws-search" type="button" aria-label="Open command palette" aria-haspopup="dialog">${icon("search")}<span>Search or run a command…</span><kbd>${/Mac/.test(navigator.platform) ? "⌘" : "Ctrl"} K</kbd></button>
           </div>
           <div class="ws-topbar-actions">
             <span class="ws-status-pill" id="ws-online"><i></i><span>Online</span></span>
@@ -132,6 +135,13 @@ const BugWorkspace = (() => {
   function toggleMenu(menu) { const open = menu.hidden; closeMenus(menu); menu.hidden = !open; }
 
   async function wireTopbar() {
+    document.getElementById("ws-nav-toggle")?.addEventListener("click", () => {
+      const root = document.getElementById("workspace-shell");
+      root.classList.toggle("nav-open");
+      let veil = document.getElementById("ws-nav-veil");
+      if (!veil) { veil = document.createElement("div"); veil.id = "ws-nav-veil"; veil.className = "ws-nav-veil"; veil.addEventListener("click", () => root.classList.remove("nav-open")); root.appendChild(veil); }
+    });
+    document.querySelector(".ws-nav")?.addEventListener("click", () => document.getElementById("workspace-shell")?.classList.remove("nav-open"));
     document.getElementById("ws-collapse")?.addEventListener("click", () => {
       const root = document.getElementById("workspace-shell");
       const collapsed = root.classList.toggle("collapsed");
@@ -139,13 +149,11 @@ const BugWorkspace = (() => {
     });
     document.addEventListener("click", (event) => { if (!event.target.closest(".ws-menu, #ws-project-button, #ws-bell, #ws-account, #ws-profile, .ws-search")) closeMenus(); });
 
-    const search = document.getElementById("ws-search");
+    document.getElementById("ws-search")?.addEventListener("click", () => openPalette());
     document.addEventListener("keydown", (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); search?.focus(); }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); openPalette(); }
       if (event.key === "Escape") closeMenus();
     });
-    search?.addEventListener("input", () => renderSearch(search.value));
-    search?.addEventListener("focus", () => renderSearch(search.value));
 
     document.getElementById("ws-project-button")?.addEventListener("click", async () => {
       const menu = document.getElementById("ws-project-menu");
@@ -207,7 +215,7 @@ const BugWorkspace = (() => {
     if (projectsCache.length && !force) return projectsCache;
     const cached = !force && cacheGet("projects");
     if (cached) { projectsCache = cached; return projectsCache; }
-    try { projectsCache = (await App.api("/projects")).projects || []; cacheSet("projects", projectsCache); } catch { projectsCache = []; }
+    try { projectsCache = (await App.api("/projects")).projects || []; projectsFailed = false; cacheSet("projects", projectsCache); } catch { projectsCache = []; projectsFailed = true; }
     return projectsCache;
   }
 
@@ -216,7 +224,12 @@ const BugWorkspace = (() => {
     const id = selectedProject();
     if (!id) { label.textContent = selectedFile() ? "Live Snippet" : "No project"; label.title = selectedFile() ? "Working on a standalone snippet, not a stored project" : "No project selected"; renderBreadcrumb(); return; }
     const projects = await loadProjectsCached();
-    label.textContent = projects.find((p) => p.id === id)?.name || id;
+    const project = projects.find((p) => p.id === id);
+    // A stored id that this account cannot see (deleted, or another user's) must
+    // not be shown as the active project; drop it so header and page agree.
+    if (!project && !projectsFailed) { setContext({ projectId: "" }); return; }
+    if (!project) { label.textContent = "Project unavailable"; renderBreadcrumb(); return; }
+    label.textContent = project.name;
     renderBreadcrumb();
   }
 
@@ -276,29 +289,83 @@ const BugWorkspace = (() => {
     return risky ? `<span class="ws-crumb-lock" title="This file has a CRITICAL or HIGH finding">${icon("lock")}</span>` : "";
   }
 
-  // Client-side only: current project's file names + current scan's finding titles.
-  function searchIndex() {
+  // --- command palette ------------------------------------------------------
+  // Every entry is a real action: navigation, an API call, a file/finding jump,
+  // or a page-registered command bound to an existing control. Nothing listed
+  // here is decorative.
+  const pageCommands = [];
+  function registerCommands(list) { pageCommands.push(...list); }
+
+  function baseCommands() {
     const scan = currentScan();
-    const files = (window.BugStudioFiles || []).map((name) => ({ kind: "file", label: name }));
-    const findings = (scan?.findings || []).map((f) => ({ kind: "finding", label: f.title, sub: `${f.file}:${f.line}`, line: f.line, file: f.file }));
-    return [...files, ...findings];
+    const projectId = selectedProject();
+    const nav = links.flatMap(([, group]) => group).filter(([href]) => href !== pageFile).map(([href, label, ic]) => ({ group: "Navigate", label, icon: ic, sub: href.replace(".html", ""), run: () => { location.href = href; } }));
+    const actions = [];
+    if (projectId) actions.push({ group: "Actions", label: "Analyze project", icon: "bug", sub: "Full analysis of the selected project", run: async () => {
+      App.showToast("Analyzing project…", "info", "Analysis");
+      const result = await App.api(`/projects/${projectId}/analyze`, { method: "POST" });
+      setContext({ scan: result.analysis });
+      App.showToast(`${result.analysis.summary.totalFindings} finding(s)`, "success", "Analysis complete");
+      if (page !== "analyzer") location.href = "analyzer.html"; else location.reload();
+    } });
+    if (scan) actions.push({ group: "Actions", label: "Open current analysis in Studio", icon: "studio", sub: scan.sourceName || scan.id, run: () => openInStudio({ scanId: scan.id, file: selectedFile() }) });
+    actions.push({ group: "Actions", label: "Toggle theme", icon: document.documentElement.getAttribute("data-theme") === "light" ? "moon" : "sun", run: () => document.querySelector("[data-theme-toggle]")?.click() });
+    actions.push({ group: "Actions", label: "Toggle sidebar", icon: "sidebar", run: () => document.getElementById("ws-collapse")?.click() });
+    actions.push({ group: "Actions", label: "Log out", icon: "logout", run: () => (App.logout ? App.logout() : (localStorage.removeItem("bugzero_token"), location.href = "login.html")) });
+    const files = (window.BugStudioFiles || []).map((name) => ({ group: "Files", label: name, icon: "file", sub: "Open in editor", run: () => jump({ kind: "file", label: name }) }));
+    const findings = (scan?.findings || []).map((f) => ({ group: "Findings", label: f.title, icon: "bug", sub: `${f.file || "snippet"}:${f.line || "?"} · ${f.severity}`, run: () => jump({ kind: "finding", label: f.title, file: f.file, line: f.line, findingId: f.id }) }));
+    return [...pageCommands, ...actions, ...nav, ...files, ...findings];
+  }
+  function jump(hit) {
+    if (page === "studio") window.dispatchEvent(new CustomEvent("bugai:jump", { detail: hit }));
+    else openInStudio({ file: hit.file || hit.label, line: hit.line, findingId: hit.findingId });
   }
 
-  function renderSearch(query) {
-    const box = document.getElementById("ws-search-results"); if (!box) return;
-    const q = String(query || "").trim().toLowerCase();
-    if (!q) { box.hidden = true; return; }
-    const hits = searchIndex().filter((item) => item.label.toLowerCase().includes(q)).slice(0, 8);
-    box.innerHTML = hits.length
-      ? `<div class="ws-menu-head"><b>Results</b><small>file names and finding titles only</small></div>` + hits.map((h) => `<button type="button" data-hit='${esc(JSON.stringify(h))}'>${icon(h.kind === "file" ? "folder" : "bug")} <span>${esc(h.label)}</span><small>${esc(h.sub || h.kind)}</small></button>`).join("")
-      : `<div class="ws-menu-empty">No match in file names or finding titles.</div>`;
-    box.hidden = false;
-    box.querySelectorAll("[data-hit]").forEach((button) => button.addEventListener("click", () => {
-      const hit = JSON.parse(button.dataset.hit);
-      window.dispatchEvent(new CustomEvent("bugai:jump", { detail: hit }));
-      closeMenus();
-    }));
+  let paletteEl = null;
+  function openPalette() {
+    if (paletteEl) return;
+    closeMenus();
+    const all = baseCommands();
+    let active = 0; let shown = all;
+    paletteEl = document.createElement("div");
+    paletteEl.className = "cp-overlay";
+    paletteEl.innerHTML = `<div class="cp" role="dialog" aria-label="Command palette"><div class="cp-input">${icon("search")}<input type="text" placeholder="Search files, findings, pages or run a command…" aria-label="Command" autocomplete="off" spellcheck="false"></div><div class="cp-list" role="listbox"></div><div class="cp-foot"><span><kbd class="ws-kbd">↑↓</kbd> navigate</span><span><kbd class="ws-kbd">↵</kbd> run</span><span><kbd class="ws-kbd">esc</kbd> close</span></div></div>`;
+    document.body.appendChild(paletteEl);
+    const input = paletteEl.querySelector("input");
+    const list = paletteEl.querySelector(".cp-list");
+    const score = (item, q) => { const l = item.label.toLowerCase(); if (!q) return 1; if (l.startsWith(q)) return 3; if (l.includes(q)) return 2; if ((item.sub || "").toLowerCase().includes(q)) return 1; return 0; };
+    function paint() {
+      const q = input.value.trim().toLowerCase();
+      const rank = (g) => ["Studio", "Actions", "Navigate", "Files", "Findings"].indexOf(g);
+      shown = all.map((c) => ({ c, s: score(c, q) })).filter((x) => x.s > 0).sort((a, b) => (rank(a.c.group) - rank(b.c.group)) || (b.s - a.s)).map((x) => x.c).slice(0, 40);
+      if (active >= shown.length) active = 0;
+      if (!shown.length) { list.innerHTML = `<div class="cp-empty">Nothing matches "${esc(input.value)}".</div>`; return; }
+      let html = ""; let lastGroup = "";
+      shown.forEach((c, i) => {
+        if (c.group !== lastGroup) { html += `<div class="cp-group">${esc(c.group)}</div>`; lastGroup = c.group; }
+        html += `<button type="button" class="cp-item ${i === active ? "is-active" : ""}" data-i="${i}" role="option" aria-selected="${i === active}">${icon(c.icon || "arrow")}<span>${esc(c.label)}</span>${c.sub ? `<small>${esc(c.sub)}</small>` : ""}${c.kbd ? `<kbd class="ws-kbd">${esc(c.kbd)}</kbd>` : ""}</button>`;
+      });
+      list.innerHTML = html;
+      list.querySelectorAll("[data-i]").forEach((b) => { b.onclick = () => run(shown[+b.dataset.i]); b.onmousemove = () => { if (active === +b.dataset.i) return; active = +b.dataset.i; list.querySelectorAll(".cp-item").forEach((x) => x.classList.toggle("is-active", +x.dataset.i === active)); }; });
+      list.querySelector(".cp-item.is-active")?.scrollIntoView({ block: "nearest" });
+    }
+    async function run(cmd) {
+      if (!cmd) return;
+      closePalette();
+      try { await cmd.run(); } catch (error) { App.showToast(error.message, "error", cmd.label); }
+    }
+    input.addEventListener("input", () => { active = 0; paint(); });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(shown.length - 1, active + 1); paint(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(0, active - 1); paint(); }
+      else if (e.key === "Enter") { e.preventDefault(); run(shown[active]); }
+      else if (e.key === "Escape") { e.preventDefault(); closePalette(); }
+    });
+    paletteEl.addEventListener("click", (e) => { if (e.target === paletteEl) closePalette(); });
+    paint();
+    input.focus();
   }
+  function closePalette() { paletteEl?.remove(); paletteEl = null; }
 
   function renderContext() { renderBreadcrumb(); refreshProjectLabel(); }
 
@@ -359,7 +426,7 @@ const BugWorkspace = (() => {
   async function loadProjects() { return (await App.api("/projects")).projects || []; }
   function requireScan(target) { const scan = currentScan(); if (!scan) { target.innerHTML = `<div class="ws-empty"><h2>No active analysis</h2><p>Open Code Studio, analyze code, then return here.</p><a class="ws-button primary" href="studio.html">Open Code Studio</a></div>`; return null; } return scan; }
 
-  return { renderShell, setContext, cacheClear, resolveScanFromUrl, setFindingStatus, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
+  return { renderShell, setContext, cacheClear, registerCommands, openPalette, resolveScanFromUrl, setFindingStatus, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
 })();
 window.BugWorkspace = BugWorkspace;
 document.addEventListener("DOMContentLoaded", () => { BugWorkspace.renderShell(); });
