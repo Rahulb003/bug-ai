@@ -330,3 +330,35 @@ body.workspace-page { background:var(--ws-bg); color:var(--ws-text); margin:0; m
 .tl-result.tone-bad { border-left-color:var(--ws-danger); }
 .tl-failures { margin-top:8px; display:flex; flex-direction:column; gap:8px; }
 .tl-failures > div > b { color:var(--ws-danger); font-size:13px; }
+
+/* ---- fix & verify report ------------------------------------------- */
+.rp-verdict { display:flex; flex-direction:column; gap:4px; border:1px solid var(--ws-line); border-left:3px solid var(--ws-line); border-radius:10px; padding:12px 14px; margin-bottom:12px; background:var(--ws-panel-2); }
+.rp-verdict b { font-size:15px; letter-spacing:.02em; }
+.rp-verdict span { color:var(--ws-muted); font-size:12px; line-height:1.5; }
+.rp-verdict.tone-ok { border-left-color:var(--ws-ok); } .rp-verdict.tone-ok b { color:var(--ws-ok); }
+.rp-verdict.tone-warn { border-left-color:var(--ws-warn); } .rp-verdict.tone-warn b { color:var(--ws-warn); }
+.rp-verdict.tone-bad { border-left-color:var(--ws-danger); } .rp-verdict.tone-bad b { color:var(--ws-danger); }
+.rp-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+.rp-grid > div { border:1px solid var(--ws-line); border-radius:9px; padding:9px 10px; background:var(--ws-panel-2); display:flex; flex-direction:column; gap:2px; }
+.rp-grid small { color:var(--ws-muted); font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; }
+.rp-grid b { font-size:18px; }
+.rp-grid b.ok { color:var(--ws-ok); } .rp-grid b.warn { color:var(--ws-warn); } .rp-grid b.bad { color:var(--ws-danger); }
+[data-rp=report] h4 { margin:14px 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--ws-muted); display:flex; align-items:center; gap:8px; }
+[data-rp=report] h4.bad { color:var(--ws-danger); }
+.rp-steps { margin:0; padding-left:18px; display:flex; flex-direction:column; gap:5px; font-size:12.5px; }
+.rp-steps li b { text-transform:capitalize; }
+.rp-steps li small { display:block; color:var(--ws-muted); font-size:11.5px; }
+.rp-steps li.st-rejected b, .rp-steps li.st-failed b { color:var(--ws-danger); }
+.rp-mod { border:1px solid var(--ws-line); border-radius:9px; padding:9px 11px; margin-bottom:8px; background:var(--ws-panel-2); font-size:12.5px; }
+.rp-mod.review { border-color:color-mix(in srgb,var(--ws-warn) 40%,var(--ws-line)); }
+.rp-mod header { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:6px; }
+.rp-mod header b { flex:1; }
+.rp-mod .op-line { border-radius:5px; font-size:12px; padding:2px 8px; white-space:pre-wrap; }
+.rp-mod p { margin:6px 0 0; font-size:12px; }
+.rp-list { margin:0; padding-left:0; list-style:none; display:flex; flex-direction:column; gap:6px; font-size:12.5px; }
+.rp-list li { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+
+/* The hidden attribute must always win. Without this, any element that also
+   has an author display rule (the right-panel panes are display:flex) stays
+   visible when hidden is set, so tab switching only appeared to work. */
+[hidden] { display:none !important; }

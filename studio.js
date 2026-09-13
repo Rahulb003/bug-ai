@@ -55,6 +55,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           <button class="st-rt active" data-rt="findings">Findings <span class="st-count" id="st-findings-count">0</span></button>
           <button class="st-rt" data-rt="assistant">AI Assistant</button>
           <button class="st-rt" data-rt="explainer">Explainer</button>
+          <button class="st-rt" data-rt="report">Report</button>
           <button class="st-x" id="st-right-close" aria-label="Hide side panel">${icon("close")}</button>
         </div>
         <div class="st-right-body">
@@ -63,6 +64,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             <div class="st-chat" id="st-chat"><div class="ws-empty st-mini">Ask about the active scan, or pick a project to ask about the whole codebase.</div></div>
             <div class="st-chat-input"><input class="ws-input" id="st-ask" placeholder="Where is authentication implemented?"><button class="ws-button primary" id="st-ask-go">Ask</button></div>
           </div>
+          <div data-rp="report" hidden><div class="ws-empty st-mini">Run Fix &amp; Verify All to see the pipeline report here.</div></div>
           <div data-rp="explainer" hidden>
             <div class="st-explain-tools">
               <select class="ws-select" id="st-explain-mode"><option value="beginner">Beginner</option><option value="technical" selected>Technical</option><option value="line-by-line">Line by line</option></select>
@@ -76,6 +78,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="st-actionbar">
         <button class="ws-button primary" id="act-analyze">${icon("studio")} Analyze</button>
         <button class="ws-button" id="act-fixall">${icon("review")} Fix All</button>
+        <button class="ws-button" id="act-repair" title="Analyze, fix, rescan, compare, verify">${icon("shield")} Fix &amp; Verify All</button>
         <button class="ws-button" id="act-optimize">${icon("gauge")} Optimize</button>
         <button class="ws-button" id="act-tests">${icon("flask")} Generate Tests</button>
         <div class="ws-bell-wrap">
@@ -431,6 +434,57 @@ document.addEventListener("DOMContentLoaded", async () => {
       App.showToast(`${applied} applied to the buffer, ${review} left for manual review. Nothing saved.`, "info", "Fix All");
       logLine(`Fix All: ${applied} applied, ${review} declined/manual`, "warn");
     } catch (error) { logLine(`Fix All failed: ${error.message}`, "bad"); App.showToast(error.message, "error", "Fix failed"); }
+  };
+
+  // Fix & Verify All: the whole pipeline server-side, then a report the user can
+  // inspect modification by modification before deciding to take the candidate.
+  document.getElementById("act-repair").onclick = async () => {
+    const pane = document.querySelector("[data-rp=report]");
+    showRight("report");
+    pane.innerHTML = `<p class="ws-muted st-mini">Running analyze → prioritise → fix → rescan → compare → verify…</p>`;
+    logLine("Fix & Verify All started");
+    try {
+      const r = await App.api("/repair", { method: "POST", body: { code: code(), filename: name(), language: lang(), applyAiFixes: false } });
+      const s = r.summary;
+      const verdictTone = r.verdict === "VERIFIED_STATIC_AND_TESTS" ? "ok" : r.verdict === "NOTHING_TO_FIX" ? "ok" : r.verdict === "REJECTED" || r.verdict === "FAILED" || r.verdict === "TESTS_FAILED" ? "bad" : "warn";
+      const tests = r.tests || {};
+      pane.innerHTML = `
+        <div class="rp-verdict tone-${verdictTone}"><b>${esc(String(r.verdict).replaceAll("_", " "))}</b><span>${esc(r.note || "")}</span></div>
+        <div class="rp-grid">
+          <div><small>Detected</small><b>${s.detected}</b></div>
+          <div><small>Fixed</small><b class="ok">${s.fixed}</b></div>
+          <div><small>Remaining</small><b>${s.remaining}</b></div>
+          <div><small>Needs review</small><b class="warn">${s.requiresReview}</b></div>
+          <div><small>Introduced</small><b class="${s.introduced ? "bad" : ""}">${s.introduced}</b></div>
+          <div><small>Tests</small><b>${tests.status === "ran" ? `${tests.passed}✓ ${tests.failed}✗` : esc(String(tests.status || "not run").replaceAll("_", " "))}</b></div>
+        </div>
+        ${tests.status !== "ran" && tests.reason ? `<p class="ws-muted st-mini" style="padding:0 0 8px">Tests: ${esc(tests.reason)}</p>` : ""}
+        <h4>Pipeline</h4>
+        <ol class="rp-steps">${(r.steps || []).map((st) => `<li class="st-${esc(st.status)}"><b>${esc(st.name)}</b> <span class="ws-badge">${esc(st.status)}</span><small>${esc(st.detail || "")}</small></li>`).join("")}</ol>
+        ${(r.attempts || []).length > 1 ? `<p class="ws-muted st-mini" style="padding:0">${r.attempts.length} attempt(s): ${r.attempts.map((a) => `round ${a.round} ${a.accepted ? "accepted" : "rejected"} (${a.fixesTried} fix(es), ${a.introduced} introduced${a.syntaxBroken ? ", syntax broken" : ""})`).join("; ")}</p>` : ""}
+        <h4>Modifications <span class="ws-badge">${r.modifications.length}</span></h4>
+        ${r.modifications.length ? r.modifications.map((m) => `<article class="rp-mod"><header><span class="ws-badge ${sevClass(m.severity)}">${esc(m.severity)}</span><b>${esc(m.title)}</b><span class="ws-badge">${esc(m.source)}</span><button class="pg-link" data-goline="${m.line}">line ${m.line}</button></header><div class="op-line del">- ${esc(m.before)}</div><div class="op-line add">+ ${esc(m.after)}</div>${m.explanation ? `<p class="ws-muted">${esc(m.explanation)}</p>` : ""}</article>`).join("") : `<p class="ws-muted st-mini" style="padding:0">No modification was applied.</p>`}
+        ${r.requiresReview.length ? `<h4>Requires review <span class="ws-badge">${r.requiresReview.length}</span></h4>${r.requiresReview.map((m) => `<article class="rp-mod review"><header><span class="ws-badge ${sevClass(m.severity)}">${esc(m.severity)}</span><b>${esc(m.title)}</b><span class="ws-badge">${esc(m.source)}</span><button class="pg-link" data-goline="${m.line}">line ${m.line}</button></header><pre class="ws-code">${esc(m.suggestedFix)}</pre><p class="ws-muted">${esc(m.explanation || "AI proposal, not verified.")}</p></article>`).join("")}` : ""}
+        ${r.remaining.length ? `<h4>Still open <span class="ws-badge">${r.remaining.length}</span></h4><ul class="rp-list">${r.remaining.map((f) => `<li><span class="ws-badge ${sevClass(f.severity)}">${esc(f.severity)}</span> ${esc(f.title)} <button class="pg-link" data-goline="${f.line}">line ${f.line}</button></li>`).join("")}</ul>` : ""}
+        ${r.introduced.length ? `<h4 class="bad">Introduced by the candidate <span class="ws-badge high">${r.introduced.length}</span></h4><ul class="rp-list">${r.introduced.map((f) => `<li><span class="ws-badge ${sevClass(f.severity)}">${esc(f.severity)}</span> ${esc(f.title)} <button class="pg-link" data-goline="${f.line}">line ${f.line}</button></li>`).join("")}</ul>` : ""}
+        <div class="fcard-actions">${r.changed ? `<button class="ws-button primary" id="rp-take">Load candidate into editor</button>` : ""}<button class="ws-button" id="rp-verify">Verification detail</button></div>
+        <div id="rp-verify-out" hidden></div>`;
+      pane.querySelectorAll("[data-goline]").forEach((b) => b.onclick = () => { const l = Number(b.dataset.goline) || 1; editor.revealLineInCenter(l); editor.setPosition({ lineNumber: l, column: 1 }); editor.focus(); });
+      pane.querySelector("#rp-take")?.addEventListener("click", () => {
+        const model = editor.getModel(); if (!model) return;
+        model.pushEditOperations([], [{ range: model.getFullModelRange(), text: r.code }], () => null);
+        const entry = openFiles[activeIndex]; if (entry) { entry.dirty = true; renderTabs(); }
+        logLine(`Loaded the Fix & Verify candidate into ${name()} (unsaved)`, "warn");
+        App.showToast("Candidate loaded into the buffer. Not saved to the project.", "info", "Loaded");
+      });
+      pane.querySelector("#rp-verify").onclick = () => {
+        const box = pane.querySelector("#rp-verify-out"); box.hidden = !box.hidden; if (!box.hidden) {
+          const v = r.verification || {};
+          box.innerHTML = `<table class="st-problems"><thead><tr><th>Check</th><th>Status</th><th>Detail</th></tr></thead><tbody>${Object.entries(v).filter(([, val]) => val && typeof val === "object" && "status" in val).map(([k, val]) => `<tr><td>${esc(k)}</td><td>${esc(String(val.status).replaceAll("_", " "))}</td><td>${esc(val.reason || val.source || "")}</td></tr>`).join("")}</tbody></table><p class="ws-muted st-mini">Not available is not a pass.</p>`;
+        }
+      };
+      logLine(`Fix & Verify All: ${r.verdict} — detected ${s.detected}, fixed ${s.fixed}, remaining ${s.remaining}, review ${s.requiresReview}, introduced ${s.introduced}`, verdictTone === "bad" ? "bad" : verdictTone === "warn" ? "warn" : "ok");
+    } catch (error) { pane.innerHTML = `<div class="ws-empty st-mini">${esc(error.message)}</div>`; logLine(`Fix & Verify All failed: ${error.message}`, "bad"); }
   };
 
   document.getElementById("act-optimize").onclick = () => {

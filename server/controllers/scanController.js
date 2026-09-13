@@ -11,6 +11,7 @@ import { runInSandbox } from "../services/engine/verification/sandboxExecutor.js
 import { explainCode } from "../services/engine/ai/aiExplainer.js";
 import { runGeneratedTests, runnerCapability, discoverProjectTests } from "../services/engine/verification/testRunner.js";
 import { requireProject } from "../services/projectService.js";
+import { fixAndVerifyAll } from "../services/engine/repairPipeline.js";
 import { generateTestCode } from "../services/engine/ai/aiTestGenerator.js";
 import { getLanguage } from "../services/engine/languageRegistry.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -135,6 +136,15 @@ export const testCapabilityController = asyncHandler(async (req, res) => {
 export const projectTestsController = asyncHandler(async (req, res) => {
   const project = await requireProject(req.user, req.params.projectId);
   res.json(discoverProjectTests(project));
+});
+
+// Fix & Verify All: the full pipeline for one file. Returns a candidate and a
+// report; nothing is saved.
+export const repairController = asyncHandler(async (req, res) => {
+  const code = String(req.body.code || req.body.source || "");
+  if (!code.trim()) throw createAppError(400, "Code input is required.");
+  if (code.length > 200000) throw createAppError(413, "Code input exceeds the 200,000-character analysis limit.");
+  res.json(await fixAndVerifyAll({ source: code, language: req.body.language || "auto", sourceName: req.body.filename || "Live snippet", applyAiFixes: req.body.applyAiFixes === true }));
 });
 
 export const verifyController = asyncHandler(async (req, res) => {
