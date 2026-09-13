@@ -40,6 +40,8 @@ function diffFindings(before, after) {
   return { resolved, remaining, introduced };
 }
 
+const candidateChanged = (a, b) => a !== b;
+
 function applyLineFixes(source, fixes) {
   const lines = source.split("\n");
   const applied = [];
@@ -129,7 +131,7 @@ export async function fixAndVerifyAll({ source, language = "auto", sourceName = 
     if (cap.status === "available") {
       const run = await runGeneratedTests({ tests: generated.tests, language: resolvedLanguage });
       tests = run.status === "completed"
-        ? { status: "ran", generated: generated.tests.length, suites: run.totals.suites, passed: run.totals.passed, failed: run.totals.failed, suitesPassed: run.totals.suitesPassed, results: run.results.map((r) => ({ name: r.name, status: r.status, passed: r.passed, failed: r.failed, failures: r.failures })) }
+        ? { status: "ran", generated: generated.tests.length, suites: run.totals.suites, passed: run.totals.passed, failed: run.totals.failed, suitesPassed: run.totals.suitesPassed, suitesFailed: run.totals.suitesFailed, results: run.results.map((r) => ({ name: r.name, status: r.status, passed: r.passed, failed: r.failed, failures: r.failures })) }
         : { status: "not_run", generated: generated.tests.length, reason: run.reason };
     } else tests = { status: "not_run", generated: generated.tests.length, reason: cap.reason, tests: generated.tests };
   } else if (generated.status === "plan_only") tests = { status: "not_run", reason: generated.reason };
@@ -137,11 +139,16 @@ export async function fixAndVerifyAll({ source, language = "auto", sourceName = 
   step("tests", tests.status === "ran" ? "completed" : tests.status, tests.status === "ran" ? `${tests.passed} passed, ${tests.failed} failed` : tests.reason);
 
   // 9. Report — a verdict that only ever claims what the evidence supports.
-  const testsFailed = tests.status === "ran" && tests.failed > 0;
+  // "Verified" requires that something changed, every generated suite ran to
+  // completion and passed, and at least one assertion actually executed.
+  const suites = tests.status === "ran" ? tests.suites : 0;
+  const allSuitesPassed = tests.status === "ran" && suites > 0 && tests.suitesPassed === suites && tests.passed > 0 && tests.failed === 0;
+  const anySuiteFailed = tests.status === "ran" && (tests.suitesFailed > 0 || tests.failed > 0);
   const verdict = !accepted && toApply.length ? "REJECTED"
+    : !candidateChanged(original, candidate) ? "NO_SAFE_FIX"
     : comparison.introduced.length ? "PARTIALLY_VERIFIED"
-    : testsFailed ? "TESTS_FAILED"
-    : tests.status === "ran" && verification.syntax === "passed" ? "VERIFIED_STATIC_AND_TESTS"
+    : anySuiteFailed ? "TESTS_FAILED"
+    : allSuitesPassed && verification.syntax === "passed" ? "VERIFIED_STATIC_AND_TESTS"
     : verification.syntax === "passed" ? "PARTIALLY_VERIFIED"
     : "FAILED";
 

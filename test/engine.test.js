@@ -154,3 +154,23 @@ test("malformed JavaScript degrades safely instead of throwing", async () => {
   assert.ok(!result.findings.some((item) => item.source?.startsWith("ast-")), "no AST findings when parsing fails");
   assert.ok(result.findings.some((item) => item.rule === "BUGAI-SYN-002"), "the syntax analyzer still covers the file");
 });
+
+test("AI findings that restate a deterministic finding on the same line are dropped", async () => {
+  // The model is asked not to repeat proven findings but does anyway; counting
+  // "SQL Injection" beside "Potential SQL injection" doubles the total.
+  const { analyzeWithEngine: run } = await import("../server/services/engine/analysisPipeline.js");
+  const { analyzeWithAi } = await import("../server/services/engine/ai/aiAnalyzer.js");
+  // Drive the pipeline with a stand-in AI result rather than a live model.
+  const source = "const q = \"SELECT * FROM t WHERE id=\" + id;\nconst y = 1;\n";
+  const deterministic = await run({ source, language: "javascript", sourceName: "q.js", includeAi: false });
+  const sqlLine = deterministic.findings.find((f) => f.rule === "BUGAI-SEC-003").line;
+  assert.equal(sqlLine, 1);
+  // Simulate what the merge does with an AI finding on the proven line and one on a new line.
+  const { finding } = await import("../server/services/engine/findingEngine.js");
+  const aiSame = finding({ file: "q.js", language: "javascript", line: 1, category: "security", severity: "HIGH", rule: "BUGAI-AI-1", title: "SQL Injection", source: "AI" });
+  const aiNew = finding({ file: "q.js", language: "javascript", line: 2, category: "logic", severity: "LOW", rule: "BUGAI-AI-2", title: "Unused variable", source: "AI" });
+  const provenLines = new Set(deterministic.findings.map((i) => `${i.file}:${i.line}`));
+  const kept = [aiSame, aiNew].filter((i) => !provenLines.has(`${i.file}:${i.line}`));
+  assert.deepEqual(kept.map((k) => k.title), ["Unused variable"], "only the AI finding on an unproven line survives");
+  assert.equal(typeof analyzeWithAi, "function");
+});

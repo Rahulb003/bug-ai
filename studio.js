@@ -320,7 +320,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelectorAll("[data-rp]").forEach((p) => p.hidden = p.dataset.rp !== which);
   };
   document.querySelectorAll(".st-rt").forEach((tab) => tab.onclick = () => showRight(tab.dataset.rt));
-  if (new URLSearchParams(location.search).get("panel") === "assistant") showRight("assistant");
 
   // --------------------------------------------------------------- findings UI
   let selectedFindingId = null;
@@ -456,9 +455,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div><small>Remaining</small><b>${s.remaining}</b></div>
           <div><small>Needs review</small><b class="warn">${s.requiresReview}</b></div>
           <div><small>Introduced</small><b class="${s.introduced ? "bad" : ""}">${s.introduced}</b></div>
-          <div><small>Tests</small><b>${tests.status === "ran" ? `${tests.passed}✓ ${tests.failed}✗` : esc(String(tests.status || "not run").replaceAll("_", " "))}</b></div>
+          <div><small>Tests</small><b class="${tests.status === "ran" && tests.suitesFailed ? "bad" : ""}">${tests.status === "ran" ? `${tests.suitesPassed}/${tests.suites} suites` : esc(String(tests.status || "not run").replaceAll("_", " "))}</b></div>
         </div>
         ${tests.status !== "ran" && tests.reason ? `<p class="ws-muted st-mini" style="padding:0 0 8px">Tests: ${esc(tests.reason)}</p>` : ""}
+        ${tests.status === "ran" ? `<ul class="rp-list" style="margin-bottom:8px">${(tests.results || []).map((t) => `<li><span class="ws-badge ${t.status === "passed" ? "low" : "high"}">${esc(String(t.status).replaceAll("_", " "))}</span> ${esc(t.name)}${(t.failures || []).length ? ` <small class="ws-muted">— ${esc(String(t.failures[0].detail || t.failures[0].test).split(String.fromCharCode(10))[0].slice(0, 90))}</small>` : ""}</li>`).join("")}</ul>` : ""}
         <h4>Pipeline</h4>
         <ol class="rp-steps">${(r.steps || []).map((st) => `<li class="st-${esc(st.status)}"><b>${esc(st.name)}</b> <span class="ws-badge">${esc(st.status)}</span><small>${esc(st.detail || "")}</small></li>`).join("")}</ol>
         ${(r.attempts || []).length > 1 ? `<p class="ws-muted st-mini" style="padding:0">${r.attempts.length} attempt(s): ${r.attempts.map((a) => `round ${a.round} ${a.accepted ? "accepted" : "rejected"} (${a.fixesTried} fix(es), ${a.introduced} introduced${a.syntaxBroken ? ", syntax broken" : ""})`).join("; ")}</p>` : ""}
@@ -607,4 +607,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     editor.focus();
   }
   if (wantedFinding && lastScan?.findings?.some((f) => f.id === wantedFinding)) showFinding(wantedFinding);
+  // Applied last: the default finding selection above would otherwise switch
+  // the panel back to Findings and swallow a ?panel= deep link.
+  const wantedPanel = params.get("panel");
+  if (wantedPanel && document.querySelector(`[data-rt="${wantedPanel}"]`)) showRight(wantedPanel);
 });

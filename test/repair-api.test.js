@@ -110,3 +110,27 @@ test("POST /api/repair returns the report and never saves anything", async (t) =
   const empty = await call("/repair", { method: "POST", token: session.token, body: { code: "  " } });
   assert.equal(empty.status, 400);
 });
+
+test("a suite that crashes before any test runs is reported as crashed, never as 0/0 passed", async () => {
+  const { runGeneratedTests } = await import("../server/services/engine/verification/testRunner.js");
+  const prev = process.env.EXECUTION_SANDBOX_ENABLED; process.env.EXECUTION_SANDBOX_ENABLED = "true";
+  try {
+    const out = await runGeneratedTests({ language: "javascript", tests: [{ name: "imports the module", code: 'import { test } from "node:test";\nconst { login } = require("./auth");\ntest("x", () => {});' }] });
+    assert.equal(out.results[0].status, "crashed");
+    assert.equal(out.results[0].failures[0].test, "(suite did not start)");
+    assert.match(out.results[0].failures[0].detail, /require|auth/);
+    assert.equal(out.totals.suitesFailed, 1);
+    assert.equal(out.totals.suitesPassed, 0);
+  } finally { if (prev === undefined) delete process.env.EXECUTION_SANDBOX_ENABLED; else process.env.EXECUTION_SANDBOX_ENABLED = prev; }
+});
+
+test("the verdict never claims verification when nothing changed or no test passed", async () => {
+  // Regression: a run with fixed=0, changed=false and three crashed suites was
+  // reported as VERIFIED_STATIC_AND_TESTS because only tests.status was checked.
+  const propose = async ({ findings }) => ({ status: "completed", fixes: findings.slice(0, 1).map((f) => ({ findingId: f.id, proposedFix: "held", explanation: "for review" })) });
+  const r = await fixAndVerifyAll({ source: "function f(a){ return eval(a); }\n", language: "javascript", sourceName: "f.js", propose });
+  assert.equal(r.changed, false, "eval has no mechanical fix and the AI one is held for review");
+  assert.equal(r.summary.fixed, 0);
+  assert.equal(r.verdict, "NO_SAFE_FIX");
+  assert.ok(!/VERIFIED/.test(r.verdict));
+});

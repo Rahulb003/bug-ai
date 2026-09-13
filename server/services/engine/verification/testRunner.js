@@ -73,7 +73,12 @@ export async function runGeneratedTests({ tests, language }) {
     // A suite only counts as passed when the process exited 0, it was not
     // killed, and the reporter recorded at least one test with zero failures.
     const ranCleanly = execution.exitCode === 0 && !execution.timedOut;
-    const status = execution.timedOut ? "timed_out" : (summary.total > 0 && summary.failed === 0 && ranCleanly) ? "passed" : "failed";
+    // A suite that exits non-zero without recording a single test never
+    // started (typically an import the sandbox cannot satisfy). Report that
+    // as "crashed" with the reason, not as 0 passed / 0 failed.
+    const crashed = !execution.timedOut && summary.total === 0 && execution.exitCode !== 0;
+    const status = execution.timedOut ? "timed_out" : crashed ? "crashed" : (summary.total > 0 && summary.failed === 0 && ranCleanly) ? "passed" : "failed";
+    const crashDetail = crashed ? String(execution.stderr || "").split(/\r?\n/).filter(Boolean).slice(0, 4).join("\n").slice(0, 400) : null;
     results.push({
       name: item.name,
       status,
@@ -85,7 +90,7 @@ export async function runGeneratedTests({ tests, language }) {
       passed: summary.passed,
       failed: summary.failed,
       skipped: summary.skipped,
-      failures: summary.failedNames.map((n) => ({ test: n, detail: failureDetail(execution.stdout || "", n) })),
+      failures: crashed ? [{ test: "(suite did not start)", detail: crashDetail || "The process exited before any test ran." }] : summary.failedNames.map((n) => ({ test: n, detail: failureDetail(execution.stdout || "", n) })),
       stdout: execution.stdout,
       stderr: execution.stderr,
       isolation: execution.isolation
@@ -96,8 +101,9 @@ export async function runGeneratedTests({ tests, language }) {
     suites: acc.suites + 1,
     passed: acc.passed + (r.passed || 0),
     failed: acc.failed + (r.failed || 0),
-    suitesPassed: acc.suitesPassed + (r.status === "passed" ? 1 : 0)
-  }), { suites: 0, passed: 0, failed: 0, suitesPassed: 0 });
+    suitesPassed: acc.suitesPassed + (r.status === "passed" ? 1 : 0),
+    suitesFailed: acc.suitesFailed + (r.status !== "passed" ? 1 : 0)
+  }), { suites: 0, passed: 0, failed: 0, suitesPassed: 0, suitesFailed: 0 });
 
   return {
     status: "completed",

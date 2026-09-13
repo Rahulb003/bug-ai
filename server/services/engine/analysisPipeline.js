@@ -34,7 +34,13 @@ export async function analyzeWithEngine({ source, language = "auto", sourceName 
     try { ai = await analyzeWithAi({ source: input.source, language: resolvedLanguage, sourceName, deterministicFindings: deterministic }); }
     catch (error) { ai = { findings: [], status: "unavailable", reason: "AI analysis failed safely; deterministic findings remain available." }; }
   }
-  const findings = mergeFindings([...deterministic, ...ai.findings]);
+  // The AI is asked to report only what deterministic rules did not already
+  // prove, but it restates them anyway ("SQL Injection" beside "Potential SQL
+  // injection"). An AI finding on a line that already carries a deterministic
+  // finding adds no evidence and inflates the count, so it is dropped.
+  const provenLines = new Set(deterministic.map((item) => `${item.file}:${item.line}`));
+  const additionalAi = ai.findings.filter((item) => !provenLines.has(`${item.file}:${item.line}`));
+  const findings = mergeFindings([...deterministic, ...additionalAi]);
   const summary = summarizeFindings(findings);
   const verification = verifyStatic(input);
   const riskScore = calculateRisk(summary);
