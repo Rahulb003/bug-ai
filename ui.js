@@ -100,8 +100,21 @@ const App = (() => {
     }
   }
 
+  // Appearance preferences (Settings): density, theme variant and accent are
+  // attributes on <html> so tokens switch before any page script paints.
+  function applyAppearance() {
+    let prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem("bugai_prefs") || "{}"); } catch { prefs = {}; }
+    const root = document.documentElement;
+    const set = (name, value, allowed) => { if (allowed.includes(value)) root.setAttribute(name, value); else root.removeAttribute(name); };
+    set("data-density", prefs.density || "comfortable", ["compact", "spacious"]);
+    set("data-variant", prefs.variant || "graphite", ["aurora", "midnight"]);
+    set("data-accent", prefs.accent || "indigo", ["blue", "violet", "cyan", "emerald"]);
+  }
+
   function initTheme() {
     setTheme(localStorage.getItem("bugzero_theme") || "system");
+    applyAppearance();
     // Delegated: workspace pages render their shell after this runs, so a
     // listener bound to the button directly would never attach there.
     document.addEventListener("click", (event) => {
@@ -389,7 +402,8 @@ const App = (() => {
     getDevopsTemplates,
     requireAuth,
     saveSession,
-    showToast
+    showToast,
+    applyAppearance
   };
 })();
 

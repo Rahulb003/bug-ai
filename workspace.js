@@ -35,7 +35,7 @@ const BugWorkspace = (() => {
   const icon = (name, cls = "") => `<svg class="ws-i ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[name] || ""}</svg>`;
 
   const links = [
-    ["Workspace", [["dashboard.html", "Dashboard", "home"], ["studio.html", "Code Studio", "studio"], ["projects.html", "Projects", "folder"]]],
+    ["Main", [["dashboard.html", "Dashboard", "home"], ["studio.html", "Code Studio", "studio"], ["projects.html", "Projects", "folder"]]],
     ["Analyze", [["analyzer.html", "Bug Analyzer", "bug"], ["optimizer.html", "Optimizer", "gauge"], ["security.html", "Security Center", "shield"], ["tests.html", "Test Lab", "flask"], ["review.html", "Code Review", "review"]]],
     ["Understand", [["architecture.html", "Architecture", "arch"], ["dependencies.html", "Dependencies", "deps"], ["assistant.html", "AI Assistant", "bot"]]],
     ["Development", [["git.html", "Git / GitHub", "git"]]],
@@ -87,10 +87,10 @@ const BugWorkspace = (() => {
     root.innerHTML = `
       <aside class="ws-sidebar">
         <a class="ws-brand" href="dashboard.html">
-          <span class="ws-brand-mark">${icon("bot")}</span>
+          <span class="ws-brand-mark" id="ws-brand-core">${window.BugBrand ? BugBrand.mark({ size: 18 }) : icon("bot")}</span>
           <span class="ws-brand-text"><b>BUG AI</b><small>Code Smarter. Build Safer.</small></span>
         </a>
-        <nav class="ws-nav">${links.map(([title, group]) => `${title ? `<div class="ws-nav-title">${title}</div>` : ""}${group.map(([href, label, ic]) => `<a class="${href === pageFile ? "active" : ""}" href="${href}">${icon(ic)}<span>${label}</span></a>`).join("")}`).join("")}</nav>
+        <nav class="ws-nav">${links.map(([title, group]) => `${title ? `<div class="ws-nav-title">${title}</div>` : ""}${group.map(([href, label, ic]) => `<a class="${href === pageFile ? "active" : ""}" href="${href}" title="${label}" aria-label="${label}"${href === pageFile ? " aria-current=\"page\"" : ""}>${icon(ic)}<span>${label}</span></a>`).join("")}`).join("")}</nav>
         <button class="ws-collapse" id="ws-collapse" type="button" aria-label="Collapse sidebar" title="Collapse sidebar">${icon("chevron")}</button>
         <button class="ws-profile" id="ws-profile" type="button" aria-haspopup="menu">
           <span class="ws-avatar" id="ws-profile-avatar">··</span>
@@ -126,7 +126,25 @@ const BugWorkspace = (() => {
       </main>`;
     renderContext();
     wireTopbar();
-    if (page === "dashboard" && window.BugMotion) BugMotion.boot({ short: true });
+    if (page === "dashboard" && window.BugMotion) BugMotion.boot({ short: true }).then(maybeOnboard);
+    else if (page === "dashboard") maybeOnboard();
+  }
+
+  // First launch only: a short, skippable orientation. Never shown again once
+  // dismissed, and never while the user already has projects.
+  async function maybeOnboard() {
+    try { if (localStorage.getItem("bugai_onboarded") === "1") return; } catch { return; }
+    const projects = await loadProjectsCached().catch(() => []);
+    if (projects.length) { try { localStorage.setItem("bugai_onboarded", "1"); } catch { /* ignore */ } return; }
+    const el = document.createElement("div");
+    el.className = "cp-overlay";
+    el.innerHTML = `<div class="cp ob" role="dialog" aria-modal="true" aria-label="Welcome to BUG AI"><div class="ob-head">${window.BugBrand ? BugBrand.mark({ size: 34 }) : ""}<div><b>Welcome to BUG AI</b><small>CODE SMARTER. BUILD SAFER.</small></div></div><ol class="ob-steps"><li><b>Create a project</b><span>Upload files, a ZIP, or import a public GitHub repository.</span></li><li><b>Add code</b><span>Open a file in Code Studio, or paste a snippet.</span></li><li><b>Analyze</b><span>Deterministic rules run always; AI reasoning is labelled separately.</span></li><li><b>Review</b><span>Every finding carries evidence, rule, confidence and a recommendation.</span></li><li><b>Fix</b><span>Fixes are proposals shown as diffs; nothing is applied silently.</span></li><li><b>Verify</b><span>Rescans confirm what actually changed; nothing is claimed otherwise.</span></li></ol><div class="ob-actions"><button type="button" class="ws-button" data-skip>Skip</button><a class="ws-button primary" href="projects.html" data-go>Create a project</a></div></div>`;
+    document.body.appendChild(el);
+    const done = () => { try { localStorage.setItem("bugai_onboarded", "1"); } catch { /* ignore */ } el.remove(); };
+    el.querySelector("[data-skip]").onclick = done;
+    el.querySelector("[data-go]").addEventListener("click", () => { try { localStorage.setItem("bugai_onboarded", "1"); } catch { /* ignore */ } });
+    el.addEventListener("click", (e) => { if (e.target === el) done(); });
+    el.querySelector("[data-skip]").focus();
   }
 
   // --- topbar behaviour -----------------------------------------------------
@@ -150,10 +168,6 @@ const BugWorkspace = (() => {
     document.addEventListener("click", (event) => { if (!event.target.closest(".ws-menu, #ws-project-button, #ws-bell, #ws-account, #ws-profile, .ws-search")) closeMenus(); });
 
     document.getElementById("ws-search")?.addEventListener("click", () => openPalette());
-    document.addEventListener("keydown", (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); openPalette(); }
-      if (event.key === "Escape") closeMenus();
-    });
 
     document.getElementById("ws-project-button")?.addEventListener("click", async () => {
       const menu = document.getElementById("ws-project-menu");
@@ -289,61 +303,106 @@ const BugWorkspace = (() => {
     return risky ? `<span class="ws-crumb-lock" title="This file has a CRITICAL or HIGH finding">${icon("lock")}</span>` : "";
   }
 
-  // --- command palette ------------------------------------------------------
-  // Every entry is a real action: navigation, an API call, a file/finding jump,
-  // or a page-registered command bound to an existing control. Nothing listed
-  // here is decorative.
-  const pageCommands = [];
-  function registerCommands(list) { pageCommands.push(...list); }
+  // --- command registry + palette ---------------------------------------------
+  // One registry powers the palette, global shortcuts and contextual actions.
+  // A command is { id, label, category, icon, sub, shortcut, when(), run() }.
+  // Every command performs a real operation: navigation, an API call, a jump,
+  // or a page-registered action bound to an existing control.
+  const registry = new Map();
+  function registerCommands(list) { for (const c of list) registry.set(c.id, c); }
+  const RECENT_KEY = "bugai_recent_commands";
+  const recents = () => { try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); } catch { return []; } };
+  const remember = (id) => { try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...recents().filter((x) => x !== id)].slice(0, 8))); } catch { /* ignore */ } };
+  const isMac = /Mac/.test(navigator.platform);
+  const kbd = (s) => s.replace("Mod", isMac ? "⌘" : "Ctrl");
 
-  function baseCommands() {
-    const scan = currentScan();
-    const projectId = selectedProject();
-    const nav = links.flatMap(([, group]) => group).filter(([href]) => href !== pageFile).map(([href, label, ic]) => ({ group: "Navigate", label, icon: ic, sub: href.replace(".html", ""), run: () => { location.href = href; } }));
-    const actions = [];
-    if (projectId) actions.push({ group: "Actions", label: "Analyze project", icon: "bug", sub: "Full analysis of the selected project", run: async () => {
+  registerCommands([
+    ...links.flatMap(([, group]) => group).map(([href, label, ic]) => ({ id: `go.${href.replace(".html", "")}`, label: `Go to ${label}`, category: "Navigate", icon: ic, sub: href.replace(".html", ""), when: () => href !== pageFile, run: () => { location.href = href; } })),
+    { id: "project.analyze", label: "Analyze project", category: "Actions", icon: "bug", sub: "Full analysis of the selected project", when: () => Boolean(selectedProject()), run: async () => {
       App.showToast("Analyzing project…", "info", "Analysis");
-      const result = await App.api(`/projects/${projectId}/analyze`, { method: "POST" });
+      const result = await App.api(`/projects/${selectedProject()}/analyze`, { method: "POST" });
       setContext({ scan: result.analysis });
       App.showToast(`${result.analysis.summary.totalFindings} finding(s)`, "success", "Analysis complete");
       if (page !== "analyzer") location.href = "analyzer.html"; else location.reload();
-    } });
-    if (scan) actions.push({ group: "Actions", label: "Open current analysis in Studio", icon: "studio", sub: scan.sourceName || scan.id, run: () => openInStudio({ scanId: scan.id, file: selectedFile() }) });
-    actions.push({ group: "Actions", label: "Toggle theme", icon: document.documentElement.getAttribute("data-theme") === "light" ? "moon" : "sun", run: () => document.querySelector("[data-theme-toggle]")?.click() });
-    actions.push({ group: "Actions", label: "Toggle sidebar", icon: "sidebar", run: () => document.getElementById("ws-collapse")?.click() });
-    actions.push({ group: "Actions", label: "Log out", icon: "logout", run: () => (App.logout ? App.logout() : (localStorage.removeItem("bugzero_token"), location.href = "login.html")) });
-    const files = (window.BugStudioFiles || []).map((name) => ({ group: "Files", label: name, icon: "file", sub: "Open in editor", run: () => jump({ kind: "file", label: name }) }));
-    const findings = (scan?.findings || []).map((f) => ({ group: "Findings", label: f.title, icon: "bug", sub: `${f.file || "snippet"}:${f.line || "?"} · ${f.severity}`, run: () => jump({ kind: "finding", label: f.title, file: f.file, line: f.line, findingId: f.id }) }));
-    return [...pageCommands, ...actions, ...nav, ...files, ...findings];
+    } },
+    { id: "scan.open", label: "Open current analysis in Studio", category: "Actions", icon: "studio", sub: () => currentScan()?.sourceName || currentScan()?.id, when: () => Boolean(currentScan()), run: () => openInStudio({ scanId: currentScan().id, file: selectedFile() }) },
+    { id: "scan.findings", label: "View current findings", category: "Actions", icon: "bug", when: () => Boolean(currentScan()) && page !== "analyzer", run: () => { location.href = `analyzer.html?scanId=${encodeURIComponent(currentScan().id)}`; } },
+    { id: "scan.security", label: "Security findings of current scan", category: "Actions", icon: "shield", when: () => Boolean(currentScan()) && page !== "security", run: () => { location.href = `security.html?scanId=${encodeURIComponent(currentScan().id)}`; } },
+    { id: "ui.theme", label: "Toggle theme", category: "Actions", icon: "sun", run: () => document.querySelector("[data-theme-toggle]")?.click() },
+    { id: "ui.sidebar", label: "Toggle sidebar", category: "Actions", icon: "sidebar", shortcut: "Mod+B", run: () => document.getElementById("ws-collapse")?.click() },
+    { id: "ui.palette", label: "Command palette", category: "Actions", icon: "search", shortcut: "Mod+K", when: () => false, run: () => openPalette() },
+    { id: "auth.logout", label: "Log out", category: "Actions", icon: "logout", run: () => (App.logout ? App.logout() : (localStorage.removeItem("bugzero_token"), location.href = "login.html")) }
+  ]);
+
+  function dynamicCommands() {
+    const scan = currentScan();
+    const files = (window.BugStudioFiles || []).map((name) => ({ id: `file.${name}`, label: name, category: "Files", icon: "file", sub: "Open in editor", run: () => jump({ kind: "file", label: name }) }));
+    const findings = (scan?.findings || []).map((f) => ({ id: `finding.${f.id}`, label: f.title, category: "Findings", icon: "bug", sub: `${f.file || "snippet"}:${f.line || "?"} · ${f.severity}`, run: () => jump({ kind: "finding", label: f.title, file: f.file, line: f.line, findingId: f.id }) }));
+    return [...files, ...findings];
   }
+  function availableCommands() {
+    return [...registry.values(), ...dynamicCommands()].filter((c) => !c.when || c.when());
+  }
+  function runCommand(id) { const c = registry.get(id); if (c && (!c.when || c.when())) return c.run(); }
   function jump(hit) {
     if (page === "studio") window.dispatchEvent(new CustomEvent("bugai:jump", { detail: hit }));
     else openInStudio({ file: hit.file || hit.label, line: hit.line, findingId: hit.findingId });
   }
 
+  // Subsequence fuzzy match: "gsec" → "Go to Security Center". Higher is better.
+  function fuzzy(text, q) {
+    const t = text.toLowerCase(); if (!q) return 1;
+    if (t.startsWith(q)) return 100; if (t.includes(q)) return 60 + Math.max(0, 20 - t.indexOf(q));
+    let ti = 0, score = 0, streak = 0;
+    for (const ch of q) { const i = t.indexOf(ch, ti); if (i < 0) return 0; streak = i === ti ? streak + 1 : 0; score += 1 + streak + (i === 0 || /[\s\/._-]/.test(t[i - 1]) ? 3 : 0); ti = i + 1; }
+    return score;
+  }
+
+  // Global shortcuts never fire while typing.
+  // Monaco's .inputarea is exempt: app chords (Mod+Shift+F, Mod+S, Mod+Enter) must work while editing.
+  const typing = (e) => e.target.closest?.("input, select, [contenteditable], textarea:not(.inputarea)");
+  document.addEventListener("keydown", (e) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); return; }
+    if (e.key === "Escape") { closeMenus(); return; }
+    if (!mod || typing(e)) return;
+    const want = `Mod+${e.shiftKey ? "Shift+" : ""}${e.altKey ? "Alt+" : ""}${e.key.length === 1 ? e.key.toUpperCase() : e.key}`;
+    for (const c of registry.values()) { if (c.shortcut === want && (!c.when || c.when())) { e.preventDefault(); Promise.resolve(c.run()).catch((err) => App.showToast(err.message, "error", c.label)); return; } }
+  });
+
   let paletteEl = null;
   function openPalette() {
     if (paletteEl) return;
     closeMenus();
-    const all = baseCommands();
-    let active = 0; let shown = all;
+    const all = availableCommands();
+    const rec = recents();
+    let active = 0; let shown = [];
     paletteEl = document.createElement("div");
     paletteEl.className = "cp-overlay";
-    paletteEl.innerHTML = `<div class="cp" role="dialog" aria-label="Command palette"><div class="cp-input">${icon("search")}<input type="text" placeholder="Search files, findings, pages or run a command…" aria-label="Command" autocomplete="off" spellcheck="false"></div><div class="cp-list" role="listbox"></div><div class="cp-foot"><span><kbd class="ws-kbd">↑↓</kbd> navigate</span><span><kbd class="ws-kbd">↵</kbd> run</span><span><kbd class="ws-kbd">esc</kbd> close</span></div></div>`;
+    paletteEl.innerHTML = `<div class="cp" role="dialog" aria-modal="true" aria-label="Command palette"><div class="cp-input">${icon("search")}<input type="text" placeholder="Search files, findings, pages or run a command…" aria-label="Command" autocomplete="off" spellcheck="false"></div><div class="cp-list" role="listbox"></div><div class="cp-foot"><span><kbd class="ws-kbd">↑↓</kbd> navigate</span><span><kbd class="ws-kbd">↵</kbd> run</span><span><kbd class="ws-kbd">esc</kbd> close</span></div></div>`;
     document.body.appendChild(paletteEl);
     const input = paletteEl.querySelector("input");
     const list = paletteEl.querySelector(".cp-list");
-    const score = (item, q) => { const l = item.label.toLowerCase(); if (!q) return 1; if (l.startsWith(q)) return 3; if (l.includes(q)) return 2; if ((item.sub || "").toLowerCase().includes(q)) return 1; return 0; };
+    const ORDER = ["Recent", "Studio", "Actions", "Navigate", "Files", "Findings"];
+    const rank = (g) => { const i = ORDER.indexOf(g); return i < 0 ? ORDER.length : i; };
     function paint() {
       const q = input.value.trim().toLowerCase();
-      const rank = (g) => ["Studio", "Actions", "Navigate", "Files", "Findings"].indexOf(g);
-      shown = all.map((c) => ({ c, s: score(c, q) })).filter((x) => x.s > 0).sort((a, b) => (rank(a.c.group) - rank(b.c.group)) || (b.s - a.s)).map((x) => x.c).slice(0, 40);
+      let rows;
+      if (!q) {
+        const recentRows = rec.map((id) => all.find((c) => c.id === id)).filter(Boolean).map((c) => ({ ...c, category: "Recent" }));
+        rows = [...recentRows, ...all.filter((c) => !rec.includes(c.id))];
+        rows.sort((a, b) => rank(a.category) - rank(b.category));
+      } else {
+        rows = all.map((c) => ({ c, s: Math.max(fuzzy(c.label, q), fuzzy(typeof c.sub === "function" ? c.sub() || "" : c.sub || "", q) * 0.6) })).filter((x) => x.s > 0).sort((a, b) => (rank(a.c.category) - rank(b.c.category)) || (b.s - a.s)).map((x) => x.c);
+      }
+      shown = rows.slice(0, 40);
       if (active >= shown.length) active = 0;
       if (!shown.length) { list.innerHTML = `<div class="cp-empty">Nothing matches "${esc(input.value)}".</div>`; return; }
-      let html = ""; let lastGroup = "";
+      let html = ""; let last = "";
       shown.forEach((c, i) => {
-        if (c.group !== lastGroup) { html += `<div class="cp-group">${esc(c.group)}</div>`; lastGroup = c.group; }
-        html += `<button type="button" class="cp-item ${i === active ? "is-active" : ""}" data-i="${i}" role="option" aria-selected="${i === active}">${icon(c.icon || "arrow")}<span>${esc(c.label)}</span>${c.sub ? `<small>${esc(c.sub)}</small>` : ""}${c.kbd ? `<kbd class="ws-kbd">${esc(c.kbd)}</kbd>` : ""}</button>`;
+        if (c.category !== last) { html += `<div class="cp-group">${esc(c.category)}</div>`; last = c.category; }
+        const sub = typeof c.sub === "function" ? c.sub() : c.sub;
+        html += `<button type="button" class="cp-item ${i === active ? "is-active" : ""}" data-i="${i}" role="option" aria-selected="${i === active}">${icon(c.icon || "arrow")}<span>${esc(c.label)}</span>${sub ? `<small>${esc(sub)}</small>` : ""}${c.shortcut ? `<kbd class="ws-kbd">${esc(kbd(c.shortcut))}</kbd>` : ""}</button>`;
       });
       list.innerHTML = html;
       list.querySelectorAll("[data-i]").forEach((b) => { b.onclick = () => run(shown[+b.dataset.i]); b.onmousemove = () => { if (active === +b.dataset.i) return; active = +b.dataset.i; list.querySelectorAll(".cp-item").forEach((x) => x.classList.toggle("is-active", +x.dataset.i === active)); }; });
@@ -351,6 +410,7 @@ const BugWorkspace = (() => {
     }
     async function run(cmd) {
       if (!cmd) return;
+      remember(cmd.id);
       closePalette();
       try { await cmd.run(); } catch (error) { App.showToast(error.message, "error", cmd.label); }
     }
@@ -360,6 +420,7 @@ const BugWorkspace = (() => {
       else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(0, active - 1); paint(); }
       else if (e.key === "Enter") { e.preventDefault(); run(shown[active]); }
       else if (e.key === "Escape") { e.preventDefault(); closePalette(); }
+      e.stopPropagation();
     });
     paletteEl.addEventListener("click", (e) => { if (e.target === paletteEl) closePalette(); });
     paint();
@@ -426,7 +487,7 @@ const BugWorkspace = (() => {
   async function loadProjects() { return (await App.api("/projects")).projects || []; }
   function requireScan(target) { const scan = currentScan(); if (!scan) { target.innerHTML = `<div class="ws-empty"><h2>No active analysis</h2><p>Open Code Studio, analyze code, then return here.</p><a class="ws-button primary" href="studio.html">Open Code Studio</a></div>`; return null; } return scan; }
 
-  return { renderShell, setContext, cacheClear, registerCommands, openPalette, resolveScanFromUrl, setFindingStatus, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
+  return { renderShell, setContext, cacheClear, registerCommands, runCommand, availableCommands, openPalette, resolveScanFromUrl, setFindingStatus, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
 })();
 window.BugWorkspace = BugWorkspace;
 document.addEventListener("DOMContentLoaded", () => { BugWorkspace.renderShell(); });

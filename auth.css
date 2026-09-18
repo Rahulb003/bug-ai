@@ -1,6 +1,7 @@
 /* Landing and auth pages: same tokens as the workspace, no shell. */
 .auth-page { margin: 0; min-height: 100vh; background: var(--ws-bg, #0b1220); color: var(--ws-text, #eef3ff); font-family: var(--font-ui); position: relative; overflow-x: hidden; }
-.auth-bg { display: none; }
+.auth-bg { position: fixed; inset: -20% -10%; pointer-events: none; z-index: 0; background: radial-gradient(55% 45% at 28% 18%, var(--aurora-1), transparent 70%), radial-gradient(45% 40% at 78% 72%, var(--aurora-2), transparent 70%), radial-gradient(35% 35% at 55% 50%, var(--aurora-3), transparent 70%); filter: blur(48px); opacity: 0.85; animation: aurora-drift 18s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .auth-bg { animation: none; } }
 .auth-code { display: none; }
 .auth-code.left { left: 4vw; top: 18vh; } .auth-code.right { right: 4vw; bottom: 14vh; text-align: right; }
 .auth-wrap { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 28px 24px 60px; }

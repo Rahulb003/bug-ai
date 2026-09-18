@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Preferences are browser-local; there is no server-side settings model.
   // Defaults are what the pages already assume, so an unset preference changes nothing.
-  const DEFAULTS = { theme: "system", editorFontSize: 13, editorMinimap: true, editorWordWrap: false, defaultLanguage: "auto", includeAiOnScan: true, toasts: true, confirmAiFixes: true };
+  const DEFAULTS = { theme: "system", variant: "graphite", accent: "indigo", density: "comfortable", editorFontSize: 13, editorMinimap: true, editorWordWrap: false, defaultLanguage: "auto", includeAiOnScan: true, toasts: true, confirmAiFixes: true };
   const load = () => { try { return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem("bugai_prefs") || "{}")) }; } catch { return { ...DEFAULTS }; } };
   const save = (prefs) => { try { localStorage.setItem("bugai_prefs", JSON.stringify(prefs)); } catch { /* private mode */ } };
   let prefs = load();
@@ -18,7 +18,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     + '<label class="s-row"><span>Font size</span><input class="ws-input" type="number" min="10" max="22" id="p-font" style="width:90px"></label>'
     + '<label class="s-row"><span>Minimap</span><input type="checkbox" id="p-minimap"></label>'
     + '<label class="s-row"><span>Word wrap</span><input type="checkbox" id="p-wrap"></label>'
-    + '<label class="s-row"><span>Theme</span><select class="ws-select" id="p-theme" style="width:auto"><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label></section>'
+    + '<label class="s-row"><span>Theme</span><select class="ws-select" id="p-theme" style="width:auto"><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label>'
+    + '<label class="s-row"><span>Variant <small class="ws-muted">(dark only)</small></span><select class="ws-select" id="p-variant" style="width:auto"><option value="graphite">Graphite</option><option value="aurora">Obsidian Aurora</option><option value="midnight">Midnight</option></select></label>'
+    + '<label class="s-row"><span>Accent</span><select class="ws-select" id="p-accent" style="width:auto"><option value="indigo">Indigo</option><option value="blue">Blue</option><option value="violet">Violet</option><option value="cyan">Cyan</option><option value="emerald">Emerald</option></select></label>'
+    + '<label class="s-row"><span>Density</span><select class="ws-select" id="p-density" style="width:auto"><option value="comfortable">Comfortable</option><option value="compact">Compact</option><option value="spacious">Spacious</option></select></label></section>'
     + '<section class="ws-card"><h3>Analysis</h3>'
     + '<label class="s-row"><span>Default language for new snippets</span><select class="ws-select" id="p-lang" style="width:auto"><option value="auto">Auto detect</option><option value="javascript">JavaScript</option><option value="typescript">TypeScript</option><option value="python">Python</option><option value="java">Java</option><option value="go">Go</option><option value="rust">Rust</option></select></label>'
     + '<label class="s-row"><span>Include AI reasoning when analyzing</span><input type="checkbox" id="p-ai"></label>'
@@ -33,8 +36,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const bind = (id, key, kind) => {
     const el = document.getElementById(id);
     if (kind === "check") { el.checked = Boolean(prefs[key]); el.onchange = () => { prefs[key] = el.checked; save(prefs); if (key === "theme") App.setTheme?.(prefs.theme); App.showToast("Preference saved.", "success", "Settings"); }; }
-    else { el.value = prefs[key]; el.onchange = () => { prefs[key] = kind === "number" ? Number(el.value) : el.value; save(prefs); if (key === "theme") { localStorage.setItem("bugzero_theme", prefs.theme); location.reload(); } else App.showToast("Preference saved.", "success", "Settings"); }; }
+    else { el.value = prefs[key]; el.onchange = () => { prefs[key] = kind === "number" ? Number(el.value) : el.value; save(prefs); if (key === "theme") { localStorage.setItem("bugzero_theme", prefs.theme); location.reload(); } else { App.applyAppearance?.(); App.showToast("Preference saved.", "success", "Settings"); } }; }
   };
+  bind("p-variant", "variant", "select"); bind("p-accent", "accent", "select"); bind("p-density", "density", "select");
   bind("p-font", "editorFontSize", "number"); bind("p-minimap", "editorMinimap", "check"); bind("p-wrap", "editorWordWrap", "check");
   document.getElementById("p-theme").value = localStorage.getItem("bugzero_theme") || "system";
   document.getElementById("p-theme").onchange = (e) => { localStorage.setItem("bugzero_theme", e.target.value); location.reload(); };

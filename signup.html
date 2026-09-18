@@ -20,10 +20,10 @@
     <p class="alt">Already have an account? <a href="login.html">Sign in</a></p>
   </section>
 </div>
-<script src="ui.js"></script><script src="workspace.js"></script><script src="motion.js"></script>
+<script src="ui.js"></script><script src="brand.js"></script><script src="workspace.js"></script><script src="motion.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", async () => {
-  document.getElementById("brand-mark").innerHTML = BugWorkspace.icon("bot");
+  document.getElementById("brand-mark").innerHTML = BugBrand.mark({ size: 22 });
   if (App.isAuthenticated()) { location.replace("dashboard.html"); return; }
   const status = document.getElementById("server-status");
   const ok = await App.checkServerConnection();

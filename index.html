@@ -25,11 +25,11 @@ verify(candidate);</pre>
   </section>
   <p class="honest">AI features need a Gemini API key and degrade to labelled deterministic fallbacks without one.</p>
 </div>
-<script src="ui.js"></script><script src="workspace.js"></script><script src="motion.js"></script>
+<script src="ui.js"></script><script src="brand.js"></script><script src="workspace.js"></script><script src="motion.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", async () => {
   // Icons from the shared set, so the landing page shares the workspace's visual language.
-  document.getElementById("brand-mark").innerHTML = BugWorkspace.icon("bot");
+  document.getElementById("brand-mark").innerHTML = BugBrand.mark({ size: 22 });
   [["i1", "bug"], ["i2", "shield"], ["i3", "studio"], ["i4", "review"]].forEach(([id, ic]) => { document.getElementById(id).innerHTML = BugWorkspace.icon(ic); });
   // Returning users skip the marketing page entirely; the short boot plays on the Dashboard.
   if (App.isAuthenticated && App.isAuthenticated()) { location.replace("dashboard.html"); return; }

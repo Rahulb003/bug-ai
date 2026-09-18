@@ -6,36 +6,51 @@ const BugMotion = (() => {
   const wait = (ms) => new Promise((r) => setTimeout(r, reduced() ? 0 : ms));
 
   // --- startup ---------------------------------------------------------------
-  // Plays once per browser session. Authenticated returning users get the short
-  // form (~1.2s); first-time visitors the full form (~1.7s). Skippable.
+  // Plays once per browser session. Six phases, ~4.4s, skippable after 0.8s:
+  //   darkness → core activation → symbol formation → brand reveal →
+  //   aurora hold → settle into the shell's brand slot.
+  // Reduced motion collapses it to a short crossfade. Nothing here represents
+  // loading or progress; the page beneath is already rendered.
   async function boot({ short = false } = {}) {
     let played = false;
     try { played = sessionStorage.getItem("bugai_booted") === "1"; } catch { played = false; }
-    if (played || reduced()) { try { sessionStorage.setItem("bugai_booted", "1"); } catch { /* ignore */ } return; }
+    const done = () => { try { sessionStorage.setItem("bugai_booted", "1"); } catch { /* ignore */ } };
+    if (played) { done(); return; }
+    const markSvg = window.BugBrand ? BugBrand.mark({ size: 96 }) : "";
     const el = document.createElement("div");
-    el.className = "boot";
-    el.innerHTML = '<div class="boot-beam"></div><div class="boot-mark"><b>BUG AI</b><small>CODE SMARTER. BUILD SAFER.</small></div><button class="boot-skip" type="button">Skip</button>';
+    el.className = "boot aurora";
+    el.innerHTML = `<div class="boot-stage"><i class="boot-point"></i><div class="boot-mark">${markSvg}</div><div class="boot-words"><b>BUG AI</b><small>CODE SMARTER. BUILD SAFER.</small></div></div><button class="boot-skip" type="button" hidden>Skip</button>`;
     document.body.appendChild(el);
+    if (reduced()) { el.classList.add("is-reduced"); await new Promise((r) => setTimeout(r, 420)); el.classList.add("is-done"); await new Promise((r) => setTimeout(r, 200)); el.remove(); done(); return; }
+
     let skipped = false;
-    el.querySelector(".boot-skip").onclick = () => { skipped = true; };
-    // Stage 1-3: mark scales in, tagline fades, beam passes (CSS-timed).
-    for (let t = 0; t < (short ? 620 : 1000) && !skipped; t += 50) await wait(50);
-    // Stage 4: settle toward where the brand lives in the shell, if present.
-    const target = document.querySelector(".ws-brand-mark") || document.querySelector(".ws-brand");
+    const skip = el.querySelector(".boot-skip");
+    skip.onclick = () => { skipped = true; };
+    const until = async (ms) => { const t0 = performance.now(); while (performance.now() - t0 < ms && !skipped) await new Promise((r) => setTimeout(r, 40)); };
+    const phase = (n) => el.classList.add(`p${n}`);
+    // Timeline (ms from start): the durations below are cumulative waits.
+    phase(1); await until(700);                 // darkness, a point of light
+    phase(2); await until(100); skip.hidden = false; await until(600);   // core activation + aurora
+    phase(3); await until(800);                 // arcs draw in: symbol formation
+    phase(4); await until(700);                 // BUG AI / tagline
+    phase(5); await until(short ? 300 : 600);   // aurora hold
+    // Phase 6: settle toward where the brand lives in the shell, if present.
+    const target = document.querySelector(".ws-brand .bc-mark, .ws-brand-mark, .brand-mark");
     const mark = el.querySelector(".boot-mark");
-    if (target && !skipped) {
+    if (target) {
       const a = mark.getBoundingClientRect(), b = target.getBoundingClientRect();
       el.style.setProperty("--boot-dx", `${b.left + b.width / 2 - (a.left + a.width / 2)}px`);
       el.style.setProperty("--boot-dy", `${b.top + b.height / 2 - (a.top + a.height / 2)}px`);
-      el.style.setProperty("--boot-scale", String(Math.max(0.12, b.height / a.height)));
-    }
-    el.classList.add("is-settling");
-    await wait(skipped ? 0 : 420);
-    // Stage 5: fade the overlay away; the page beneath is already rendered.
+      el.style.setProperty("--boot-scale", String(Math.max(0.16, b.width / a.width)));
+    } else { el.style.setProperty("--boot-scale", "0.6"); }
+    phase(6);
+    document.body.classList.add("m-assembling");
+    await new Promise((r) => setTimeout(r, skipped ? 220 : 620));
     el.classList.add("is-done");
-    await wait(260);
+    await new Promise((r) => setTimeout(r, 300));
     el.remove();
-    try { sessionStorage.setItem("bugai_booted", "1"); } catch { /* ignore */ }
+    setTimeout(() => document.body.classList.remove("m-assembling"), 400);
+    done();
   }
 
   // --- page-leave transition ------------------------------------------------

@@ -137,11 +137,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // ------------------------------------------------------------- tab handling
+  const findingsFor = (fileName) => { try { return (lastScan?.findings || []).filter((f) => (f.file || lastScan?.sourceName) === fileName && f.triage?.status !== "ignored"); } catch { return []; } };
+  function persistTabs() {
+    try { localStorage.setItem("bugai_studio_tabs", JSON.stringify({ projectId: currentProjectId || "", names: openFiles.filter((f) => !f.dirty || projectFiles.some((p) => p.name === f.name)).map((f) => f.name), active: openFiles[activeIndex]?.name || "" })); } catch { /* ignore */ }
+  }
   function renderTabs() {
+    persistTabs();
     const bar = document.getElementById("st-tabs");
-    bar.innerHTML = openFiles.map((f, i) => `<div class="st-tab ${i === activeIndex ? "active" : ""}" data-tab="${i}" title="${esc(f.name)}">${fileIcon(f.name)}<span>${esc(f.name.split("/").pop())}</span>${f.dirty ? '<i class="st-dot" title="Unsaved changes"></i>' : ""}<button class="st-tab-x" data-close="${i}" aria-label="Close">${icon("close")}</button></div>`).join("") + `<button class="st-tab-add" id="st-tab-add" title="New untitled file">+</button>`;
+    bar.innerHTML = openFiles.map((f, i) => `<div class="st-tab ${i === activeIndex ? "active" : ""}" data-tab="${i}" title="${esc(f.name)}">${fileIcon(f.name)}<span>${esc(f.name.split("/").pop())}</span>${findingsFor(f.name).length ? `<i class="st-flag" title="${findingsFor(f.name).length} finding(s)">${findingsFor(f.name).length}</i>` : ""}${f.dirty ? '<i class="st-dot" title="Unsaved changes"></i>' : ""}<button class="st-tab-x" data-close="${i}" aria-label="Close">${icon("close")}</button></div>`).join("") + `<button class="st-tab-add" id="st-tab-add" title="New untitled file">+</button>`;
     bar.querySelectorAll("[data-tab]").forEach((el) => el.onclick = (e) => { if (!e.target.closest("[data-close]")) activateTab(+el.dataset.tab); });
     bar.querySelectorAll("[data-close]").forEach((el) => el.onclick = (e) => { e.stopPropagation(); closeTab(+el.dataset.close); });
+    bar.querySelectorAll("[data-tab]").forEach((el) => el.oncontextmenu = (e) => { e.preventDefault(); tabMenu(+el.dataset.tab, e.clientX, e.clientY); });
     document.getElementById("st-tab-add").onclick = () => {
       let n = 1; while (openFiles.some((f) => f.name === `untitled-${n}.js`)) n += 1;
       openTab({ name: `untitled-${n}.js`, content: "", language: "javascript", dirty: true });
@@ -168,6 +174,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     model.onDidChangeContent(() => { if (!entry.dirty) { entry.dirty = true; renderTabs(); } });
     openFiles.push(entry); activeIndex = openFiles.length - 1;
     editor.setModel(model); clearDiagnostics(); renderTabs(); syncStatus(); editor.focus();
+  }
+  // Right-click menu on a tab. Every entry is a real operation on real tabs.
+  function tabMenu(index, x, y) {
+    document.getElementById("st-tabmenu")?.remove();
+    const f = openFiles[index]; if (!f) return;
+    const menu = document.createElement("div");
+    menu.className = "ws-menu st-tabmenu"; menu.id = "st-tabmenu";
+    menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;right:auto;min-width:200px`;
+    const items = [
+      ["Close", () => closeTab(index)],
+      ["Close others", () => { for (let i = openFiles.length - 1; i >= 0; i--) if (i !== index) closeTab(i); }],
+      ["Close all", () => { for (let i = openFiles.length - 1; i >= 0; i--) closeTab(i); }],
+      ["Reveal in explorer", () => { selectedTreeFile = f.name; renderTree(); document.querySelector(`[data-file="${CSS.escape(f.name)}"]`)?.scrollIntoView({ block: "nearest" }); }, projectFiles.some((p) => p.name === f.name)],
+      ["Copy path", () => navigator.clipboard?.writeText(f.name)],
+      ["Open in Optimizer", () => { activateTab(index); document.getElementById("act-optimize").click(); }]
+    ];
+    menu.innerHTML = items.filter(([, , ok]) => ok !== false).map(([label], i) => `<button type="button" data-mi="${i}">${esc(label)}</button>`).join("");
+    document.body.appendChild(menu);
+    const visible = items.filter(([, , ok]) => ok !== false);
+    menu.querySelectorAll("[data-mi]").forEach((b) => b.onclick = () => { menu.remove(); visible[+b.dataset.mi][1](); });
+    const off = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener("mousedown", off); } };
+    setTimeout(() => document.addEventListener("mousedown", off), 0);
   }
   function closeTab(index) {
     openFiles[index].model.dispose(); openFiles.splice(index, 1);
@@ -438,9 +466,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function analyze() {
     const status = document.getElementById("st-status");
     status.textContent = "Analyzing…"; logLine("Analyze started");
+    BugBrand.setState(document.getElementById("ws-brand-core"), "scanning");
     try {
       const scan = await App.api("/scan-code", { method: "POST", body: { code: code(), filename: name(), language: lang(), includeAi: prefs.includeAiOnScan !== false } });
       BugWorkspace.setContext({ file: name(), scan });
+      BugBrand.setState(document.getElementById("ws-brand-core"), (scan.findings || []).length ? "finding" : "verified");
+      setTimeout(() => BugBrand.setState(document.getElementById("ws-brand-core"), "normal"), 2400);
       if (lang() === "auto" && scan.language && editor.getModel()) monaco.editor.setModelLanguage(editor.getModel(), monacoLangFor(scan.language));
       renderFindings(scan); syncStatus();
       status.textContent = `Completed: ${scan.summary.totalFindings} findings · ${scan.verification.status.replaceAll("_", " ")}. Code is analyzed locally by deterministic rules; optional AI reasoning is separately labeled.`;
@@ -450,14 +481,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   document.getElementById("act-analyze").onclick = analyze;
+  // Focus mode: only the editor. Ctrl/Cmd+Shift+F toggles; Escape leaves.
+  const setFocus = (on) => { document.body.classList.toggle("studio-focus", on); try { localStorage.setItem("bugai_studio_focus", on ? "1" : "0"); } catch { /* ignore */ } setTimeout(() => editor.layout(), 200); };
+  try { if (localStorage.getItem("bugai_studio_focus") === "1") setFocus(true); } catch { /* ignore */ }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("studio-focus")) setFocus(false); });
   BugWorkspace.registerCommands([
-    { group: "Studio", label: "Analyze current file", icon: "studio", sub: "Deterministic + AI analysis of the open file", run: () => document.getElementById("act-analyze").click() },
-    { group: "Studio", label: "Fix all findings", icon: "review", sub: "Proposals for every finding with a fix", run: () => document.getElementById("act-fixall").click() },
-    { group: "Studio", label: "Fix & Verify All", icon: "shield", sub: "Analyze → fix → rescan → compare → verify", run: () => document.getElementById("act-repair").click() },
-    { group: "Studio", label: "Optimize this file", icon: "gauge", sub: "Open in the Optimizer", run: () => document.getElementById("act-optimize").click() },
-    { group: "Studio", label: "Generate tests", icon: "flask", sub: "Open in Test Lab", run: () => document.getElementById("act-tests").click() },
-    { group: "Studio", label: "Explain file", icon: "bot", run: () => document.getElementById("more-explain").click() },
-    { group: "Studio", label: "Save file to project", icon: "folder", run: () => document.getElementById("more-save").click() }
+    { id: "studio.analyze", label: "Analyze current file", category: "Studio", icon: "studio", shortcut: "Mod+Enter", sub: "Deterministic + AI analysis of the open file", run: () => document.getElementById("act-analyze").click() },
+    { id: "studio.fixall", label: "Fix all findings", category: "Studio", icon: "review", sub: "Proposals for every finding with a fix", run: () => document.getElementById("act-fixall").click() },
+    { id: "studio.repair", label: "Fix & Verify All", category: "Studio", icon: "shield", sub: "Analyze → fix → rescan → compare → verify", run: () => document.getElementById("act-repair").click() },
+    { id: "studio.optimize", label: "Optimize this file", category: "Studio", icon: "gauge", sub: "Open in the Optimizer", run: () => document.getElementById("act-optimize").click() },
+    { id: "studio.tests", label: "Generate tests", category: "Studio", icon: "flask", sub: "Open in Test Lab", run: () => document.getElementById("act-tests").click() },
+    { id: "studio.explain", label: "Explain file", category: "Studio", icon: "bot", run: () => document.getElementById("more-explain").click() },
+    { id: "studio.explain.selection", label: "Explain selection", category: "Studio", icon: "bot", when: () => !editor.getSelection()?.isEmpty(), run: () => { showRight("explainer"); runExplain(false); } },
+    { id: "studio.ask", label: "Ask BUG AI about this file", category: "Studio", icon: "bot", run: () => { showRight("assistant"); document.getElementById("st-ask").focus(); } },
+    { id: "studio.save", label: "Save file to project", category: "Studio", icon: "folder", shortcut: "Mod+S", run: () => document.getElementById("more-save").click() },
+    { id: "studio.focus", label: "Toggle focus mode", category: "Studio", icon: "studio", shortcut: "Mod+Shift+F", sub: "Editor only", run: () => setFocus(!document.body.classList.contains("studio-focus")) },
+    { id: "studio.explorer", label: "Toggle file explorer", category: "Studio", icon: "folder", shortcut: "Mod+Shift+E", run: () => document.getElementById("st-explorer-close")?.click() },
+    { id: "studio.panel", label: "Toggle side panel", category: "Studio", icon: "sidebar", shortcut: "Mod+Shift+P", run: () => document.getElementById("st-right-close")?.click() }
   ]);
 
   document.getElementById("act-fixall").onclick = async () => {
@@ -626,6 +666,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   document.getElementById("st-explain-go").onclick = () => runExplain(false);
 
+  // Contextual action bar: appears beside a non-empty selection and offers the
+  // operations that already exist for it. Hidden the moment the selection ends.
+  const selBar = document.createElement("div");
+  selBar.className = "st-selbar"; selBar.hidden = true;
+  selBar.innerHTML = `<button type="button" data-act="explain">${icon("bot")} Explain</button><button type="button" data-act="optimize">${icon("gauge")} Optimize</button><button type="button" data-act="tests">${icon("flask")} Test</button><button type="button" data-act="ask">Ask BUG AI</button>`;
+  document.getElementById("st-editor").appendChild(selBar);
+  selBar.querySelector('[data-act="explain"]').onclick = () => { showRight("explainer"); runExplain(false); };
+  selBar.querySelector('[data-act="optimize"]').onclick = () => document.getElementById("act-optimize").click();
+  selBar.querySelector('[data-act="tests"]').onclick = () => document.getElementById("act-tests").click();
+  selBar.querySelector('[data-act="ask"]').onclick = () => { showRight("assistant"); const ask = document.getElementById("st-ask"); ask.value = "About the selected code: "; ask.focus(); };
+  let selTimer = null;
+  editor.onDidChangeCursorSelection((e) => {
+    clearTimeout(selTimer);
+    if (e.selection.isEmpty()) { selBar.hidden = true; return; }
+    selTimer = setTimeout(() => {
+      const pos = editor.getScrolledVisiblePosition(e.selection.getEndPosition()); if (!pos) return;
+      const host = document.getElementById("st-editor").getBoundingClientRect();
+      selBar.hidden = false;
+      selBar.style.left = `${Math.min(Math.max(8, pos.left), host.width - selBar.offsetWidth - 8)}px`;
+      selBar.style.top = `${Math.min(pos.top + pos.height + 6, host.height - 40)}px`;
+    }, 180);
+  });
+  editor.onDidScrollChange(() => { selBar.hidden = true; });
+
   // -------------------------------------------------------------------- wiring
   window.addEventListener("bugai:project", (e) => loadProjectFiles(e.detail.projectId));
   window.addEventListener("bugai:jump", (e) => {
@@ -659,6 +723,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const wantedLine = Number(params.get("line")) || 0;
   const wantedColumn = Number(params.get("column")) || 1;
   const wantedFinding = params.get("finding");
+  if (!wantedFile && !params.get("scanId")) {
+    try {
+      const saved = JSON.parse(localStorage.getItem("bugai_studio_tabs") || "null");
+      if (saved && saved.projectId === (currentProjectId || "") && Array.isArray(saved.names)) {
+        for (const n of saved.names) { const known = projectFiles.find((f) => f.name === n); if (known) openTab({ name: known.name, content: known.content, language: known.language || "auto" }); }
+        const idx = openFiles.findIndex((f) => f.name === saved.active); if (idx >= 0) activateTab(idx);
+      }
+    } catch { /* ignore */ }
+  }
   if (wantedFile) {
     const known = projectFiles.find((f) => f.name === wantedFile);
     if (known) { selectedTreeFile = known.name; openTab({ name: known.name, content: known.content, language: known.language || "auto" }); renderTree(); }

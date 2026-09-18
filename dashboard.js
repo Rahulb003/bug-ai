@@ -60,6 +60,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       + "</div>";
   }
 
+  // Continue working: only what is actually persisted (file, scan, tabs).
+  const lastFile = BugWorkspace.selectedFile();
+  let savedTabs = null; try { savedTabs = JSON.parse(localStorage.getItem("bugai_studio_tabs") || "null"); } catch { savedTabs = null; }
+  const attention = findings.filter((f) => ["CRITICAL", "HIGH"].includes(String(f.severity).toUpperCase()) && f.triage?.status !== "ignored").slice(0, 5);
+  if (lastFile || scan) {
+    body += '<section class="pg-section db-continue"><div class="pg-section-head"><h3>Continue working</h3></div><div class="db-continue-row"><div><b>' + esc(lastFile || scan?.sourceName || "Live snippet") + "</b><p class=\"ws-muted\">"
+      + (scan ? esc((scan.findings || []).length + " finding(s) · " + new Date(scan.createdAt || Date.now()).toLocaleString()) : "No analysis stored for this file yet")
+      + (savedTabs?.names?.length ? " · " + savedTabs.names.length + " tab(s) open" : "") + '</p></div><button class="ws-button primary" id="db-continue">Continue in Studio</button></div></section>';
+  }
+  if (attention.length) {
+    body += '<section class="pg-section"><div class="pg-section-head"><h3>Needs attention</h3><a href="analyzer.html">All findings →</a></div><div class="pg-list db-attention">'
+      + attention.map((f) => '<button type="button" class="db-att" data-open="' + esc(f.id) + '"><span class="ws-badge ' + esc(String(f.severity).toLowerCase()) + '">' + esc(f.severity) + "</span><b>" + esc(f.title) + '</b><small class="ws-muted mono">' + esc((f.file || scan?.sourceName || "snippet") + ":" + (f.line || "?")) + "</small></button>").join("") + "</div></section>";
+  }
   body += '<div class="ws-grid cols-2" style="margin-top:8px">';
   body += section("Active project", project ? { href: "projects.html", label: "All projects" } : null, project
     ? '<dl class="pg-kv"><dt>Name</dt><dd>' + esc(project.name) + "</dd><dt>Files</dt><dd>" + project.fileCount + "</dd><dt>Languages</dt><dd>" + esc(project.languages.join(", ") || "none detected") + "</dd><dt>Manifests</dt><dd>" + esc(project.manifests.join(", ") || "none") + "</dd><dt>Last project analysis</dt><dd>" + (project.lastAnalysis ? esc(String(project.lastAnalysis.verification?.status || "").replaceAll("_", " ")) + " · " + (project.lastAnalysis.summary?.totalFindings ?? 0) + " finding(s)" : "not analyzed") + '</dd></dl><div class="ws-toolbar" style="margin-top:14px"><a class="ws-button" href="architecture.html">Architecture</a><a class="ws-button" href="dependencies.html">Dependencies</a><a class="ws-button" href="debt.html">Technical debt</a></div>'
@@ -79,6 +92,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   body += "</div>";
   document.getElementById("db-body").innerHTML = body;
 
+  document.getElementById("db-continue")?.addEventListener("click", () => BugWorkspace.openInStudio({ scanId: scan?.id, file: lastFile || scan?.sourceName }));
+  document.querySelectorAll(".db-att").forEach((btn) => btn.addEventListener("click", () => { const f = findings.find((x) => x.id === btn.dataset.open); if (f) BugWorkspace.openInStudio({ scanId: scan?.id, file: f.file || scan?.sourceName, line: f.line, findingId: f.id }); }));
   if (latest) { countTo(document.getElementById("m-total"), findings.length); countTo(document.getElementById("m-crit"), c.CRITICAL + c.HIGH); countTo(document.getElementById("m-sec"), security); }
 
   document.getElementById("db-analyze")?.addEventListener("click", async (e) => {

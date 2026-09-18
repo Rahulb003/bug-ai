@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>History | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="design.css"><link rel="stylesheet" href="workspace.css"><link rel="stylesheet" href="motion.css"></head><body class="workspace-page" data-page="history"><div id="workspace-shell"></div><script src="ui.js"></script><script src="workspace.js"></script><script src="motion.js"></script><script src="pages.js"></script><script>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>History | BUG AI</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="design.css"><link rel="stylesheet" href="workspace.css"><link rel="stylesheet" href="motion.css"></head><body class="workspace-page" data-page="history"><div id="workspace-shell"></div><script src="ui.js"></script><script src="brand.js"></script><script src="workspace.js"></script><script src="motion.js"></script><script src="pages.js"></script><script>
 document.addEventListener("DOMContentLoaded", async () => {
   if (!App.requireAuth()) return;
   const root = document.getElementById("workspace-content");
@@ -27,7 +27,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     + '<td><span class="ws-badge ' + sevClass(s.riskLevel) + '">' + esc(String(s.riskScore ?? "—")) + " " + esc(s.riskLevel || "") + "</span></td>"
     + "<td>" + esc(String(s.verification?.status || "NOT RUN").replaceAll("_", " ")) + "</td>"
     + '<td><button class="ws-button" data-studio="' + esc(s.id) + '">Open in Studio</button> <button class="ws-button" data-load="' + esc(s.id) + '">View Findings</button> <button class="ws-button" data-export="' + esc(s.id) + '">Export</button></td></tr>').join("")
-  + "</tbody></table>";
+  + "</tbody></table>"
+  // Code timeline: the same stored scans grouped by day. Fixes and revisions
+  // are not stored as events yet, so only scans appear here — nothing is invented.
+  + (function () {
+    const dayLabel = (d) => { const t = new Date(); const y = new Date(); y.setDate(t.getDate() - 1); const k = (x) => x.toDateString(); return k(d) === k(t) ? "Today" : k(d) === k(y) ? "Yesterday" : d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: d.getFullYear() === t.getFullYear() ? undefined : "numeric" }); };
+    const groups = new Map();
+    scans.slice().sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt)).forEach((sc) => { const l = dayLabel(new Date(sc.createdAt)); if (!groups.has(l)) groups.set(l, []); groups.get(l).push(sc); });
+    return '<section class="pg-section"><div class="pg-section-head"><h3>Code timeline</h3><span class="ws-muted" style="font-size:12px">Stored scans by day · fixes and revisions are not recorded as events yet</span></div><div class="tl-days">'
+      + [...groups].map(([label, list]) => '<div class="tl-day"><h4>' + esc(label) + "</h4>" + list.map((sc) => '<button type="button" class="tl-ev" data-tl="' + esc(sc.id) + '"><span class="tl-dot ' + sevClass(sc.riskLevel) + '"></span><time>' + esc(new Date(sc.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) + "</time><b>Scan</b><span>" + esc(sc.sourceName || "snippet") + "</span><small>" + ((sc.findings || sc.bugs || []).length) + " finding(s) · " + esc(String(sc.verification?.status || "NOT RUN").replaceAll("_", " ")) + "</small></button>").join("") + "</div>").join("")
+      + "</div></section>";
+  })();
+
+  document.querySelectorAll("[data-tl]").forEach((b) => b.onclick = () => { location.href = "analyzer.html?scanId=" + encodeURIComponent(b.dataset.tl); });
 
   const picks = () => [...document.querySelectorAll("[data-pick]:checked")].map((c) => c.dataset.pick);
   document.querySelectorAll("[data-pick]").forEach((c) => c.onchange = () => { document.getElementById("compare").disabled = picks().length !== 2; });

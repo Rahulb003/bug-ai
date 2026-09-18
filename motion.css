@@ -65,15 +65,48 @@ body.m-leaving .ws-content { animation: m-page-out var(--m-fast) var(--m-out) bo
 .toast, .ws-toast { animation: m-toast-in var(--m-slow) var(--m-ease) both; }
 @keyframes m-toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
-/* ---- startup ------------------------------------------------------------------ */
-.boot { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: var(--bg-app, #0a0a0b); color: var(--text-primary, #ededef); overflow: hidden; }
-.boot.is-done { pointer-events: none; animation: m-fade var(--m-slow) var(--m-out) reverse both; }
-.boot-mark { display: grid; place-items: center; gap: 12px; text-align: center; animation: m-scale 420ms var(--m-ease) both; }
-.boot-mark b { font-size: clamp(40px, 7vw, 72px); letter-spacing: -0.02em; font-weight: 600; line-height: 1; }
-.boot-mark small { font-size: clamp(11px, 1.2vw, 13px); letter-spacing: .18em; color: var(--text-muted, #70707a); font-weight: 500; opacity: 0; animation: m-fade 380ms var(--m-ease) 420ms both; }
-.boot-beam { position: absolute; left: 0; right: 0; height: 2px; top: 50%; background: linear-gradient(90deg, transparent, var(--accent-primary, #8b8cf6), transparent); opacity: 0; animation: m-boot-beam 520ms var(--m-ease) 640ms both; }
-@keyframes m-boot-beam { 0% { opacity: 0; transform: translateY(-40px) scaleX(.2); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(40px) scaleX(1); } }
-.boot.is-settling .boot-mark { animation: m-boot-settle 460ms var(--m-ease) both; }
-@keyframes m-boot-settle { to { transform: translate(var(--boot-dx, 0px), var(--boot-dy, 0px)) scale(var(--boot-scale, .4)); opacity: 0; } }
-.boot-skip { position: absolute; right: 18px; bottom: 16px; border: 1px solid var(--border-default, #2a2a30); background: transparent; color: var(--text-muted, #70707a); border-radius: 6px; padding: 6px 11px; cursor: pointer; font: inherit; font-size: 12px; }
-.boot-skip:hover { color: var(--text-primary, #ededef); }
+/* ---- startup ------------------------------------------------------------------
+   Six phases driven by .p1–.p6 on .boot (see motion.js). Graphite ground,
+   aurora only as atmosphere behind the mark. */
+.boot { position: fixed; inset: 0; z-index: var(--z-boot, 1000); display: grid; place-items: center; background: var(--bg-app, #0a0a0b); color: var(--text-primary, #ededef); overflow: hidden; }
+.boot::before { opacity: 0; transition: opacity 900ms var(--m-ease); }
+.boot.p2::before { opacity: 0.55; }
+.boot.p5::before { opacity: 0.9; animation: aurora-drift 6s ease-in-out infinite alternate; }
+.boot.p6::before { opacity: 0; transition-duration: 500ms; }
+.boot-stage { position: relative; display: grid; place-items: center; gap: 26px; }
+.boot-point { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: var(--text-primary); opacity: 0; transform: scale(0.2); transition: opacity 500ms var(--m-ease), transform 500ms var(--m-ease); }
+.boot.p1 .boot-point { opacity: 1; transform: scale(1); }
+.boot.p2 .boot-point { opacity: 0; transform: scale(6); transition-duration: 400ms; }
+.boot-mark { display: grid; place-items: center; }
+.boot-mark .bc-mark { width: 96px; height: 96px; }
+.boot-mark .bc-core { opacity: 0; transform: scale(0.2) rotate(45deg); transition: opacity 500ms var(--m-ease), transform 600ms cubic-bezier(.2,.9,.2,1); }
+.boot.p2 .boot-mark .bc-core { opacity: 1; transform: none; }
+.boot-mark .bc-arc { stroke-dasharray: 40; stroke-dashoffset: 40; opacity: 0; transition: stroke-dashoffset 700ms cubic-bezier(.4,0,.2,1), opacity 200ms linear; }
+.boot.p3 .boot-mark .bc-arc { stroke-dashoffset: 0; opacity: 1; }
+.boot.p3 .boot-mark .bc-arc-r { transition-delay: 90ms; }
+.boot-words { display: grid; gap: 8px; text-align: center; opacity: 0; transform: translateY(8px); transition: opacity 500ms var(--m-ease), transform 500ms var(--m-ease); }
+.boot-words b { font-size: clamp(30px, 4.6vw, 44px); letter-spacing: -0.02em; font-weight: 600; line-height: 1; }
+.boot-words small { font-size: clamp(11px, 1.1vw, 12.5px); letter-spacing: 0.2em; color: var(--text-muted); font-weight: 500; opacity: 0; transition: opacity 400ms var(--m-ease) 250ms; }
+.boot.p4 .boot-words { opacity: 1; transform: none; }
+.boot.p4 .boot-words small { opacity: 1; }
+.boot.p6 .boot-words { opacity: 0; transform: translateY(-6px); transition-duration: 300ms; }
+.boot.p6 .boot-stage { gap: 0; }
+.boot.p6 .boot-mark { transition: transform 600ms cubic-bezier(.4,0,.2,1); transform: translate(var(--boot-dx, 0px), var(--boot-dy, 0px)) scale(var(--boot-scale, .3)); }
+.boot.is-done { pointer-events: none; opacity: 0; transition: opacity 300ms var(--m-out); }
+.boot.is-reduced .boot-point { display: none; }
+.boot.is-reduced .boot-mark .bc-core, .boot.is-reduced .boot-mark .bc-arc, .boot.is-reduced .boot-words, .boot.is-reduced .boot-words small { opacity: 1; transform: none; stroke-dashoffset: 0; transition: none; }
+.boot.is-reduced.is-done { transition-duration: 200ms; }
+.boot-skip { position: absolute; right: 18px; bottom: 16px; border: 1px solid var(--border-default); background: transparent; color: var(--text-muted); border-radius: 6px; padding: 6px 11px; cursor: pointer; font: inherit; font-size: 12px; animation: m-fade 300ms var(--m-ease) both; }
+.boot-skip:hover { color: var(--text-primary); }
+
+/* Shell assembling from the brand: sidebar, header and content settle in once,
+   only during the startup hand-off. */
+body.m-assembling .ws-sidebar { animation: m-assemble-x 520ms var(--m-ease) both; }
+body.m-assembling .ws-topbar { animation: m-assemble-y 520ms var(--m-ease) 60ms both; }
+body.m-assembling .ws-content { animation: m-rise 520ms var(--m-ease) 140ms both; }
+@keyframes m-assemble-x { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+@keyframes m-assemble-y { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.boot { transition: background-color 520ms var(--m-ease); }
+.boot.p6 { background-color: transparent; }
+.boot.p6 .boot-skip { opacity: 0; pointer-events: none; transition: opacity 200ms; }
+body:has(.boot:not(.is-done)) { overflow: hidden; }
