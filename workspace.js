@@ -190,7 +190,7 @@ const BugWorkspace = (() => {
         // Anchor the menu near whichever control opened it.
         menu.closest(".ws-bell-wrap") && (menu.style.position = "absolute");
         toggleMenu(menu);
-        menu.querySelector("[data-logout]")?.addEventListener("click", () => App.logout ? App.logout() : (localStorage.removeItem("bugzero_token"), location.href = "login.html"));
+        menu.querySelector("[data-logout]")?.addEventListener("click", () => App.logout());
       });
     }
 
@@ -331,7 +331,7 @@ const BugWorkspace = (() => {
     { id: "ui.theme", label: "Toggle theme", category: "Actions", icon: "sun", run: () => document.querySelector("[data-theme-toggle]")?.click() },
     { id: "ui.sidebar", label: "Toggle sidebar", category: "Actions", icon: "sidebar", shortcut: "Mod+B", run: () => document.getElementById("ws-collapse")?.click() },
     { id: "ui.palette", label: "Command palette", category: "Actions", icon: "search", shortcut: "Mod+K", when: () => false, run: () => openPalette() },
-    { id: "auth.logout", label: "Log out", category: "Actions", icon: "logout", run: () => (App.logout ? App.logout() : (localStorage.removeItem("bugzero_token"), location.href = "login.html")) }
+    { id: "auth.logout", label: "Log out", category: "Actions", icon: "logout", run: () => (App.logout()) }
   ]);
 
   function dynamicCommands() {

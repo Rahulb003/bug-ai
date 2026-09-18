@@ -311,7 +311,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("ex-export").onclick = async () => {
     if (!currentProjectId) return App.showToast("Open a project first.", "warning", "Nothing to export");
     try {
-      const response = await fetch(`/api/projects/${currentProjectId}/export`, { headers: { Authorization: `Bearer ${localStorage.getItem("bugzero_token")}` } });
+      const response = await fetch(`/api/projects/${currentProjectId}/export`, { headers: { "X-Requested-With": "BugAI" }, credentials: "same-origin" });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Export failed");
       const name = (response.headers.get("content-disposition") || "").match(/filename="([^"]+)"/)?.[1] || "project.zip";
       const a = document.createElement("a"); a.href = URL.createObjectURL(await response.blob()); a.download = name; a.click(); URL.revokeObjectURL(a.href);

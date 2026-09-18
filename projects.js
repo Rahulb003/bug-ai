@@ -45,8 +45,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // browser a blob. A plain <a href> would arrive without the Authorization header.
   async function download(id) {
     try {
-      const token = localStorage.getItem("bugzero_token");
-      const response = await fetch("/api/projects/" + id + "/export", { headers: { Authorization: "Bearer " + token } });
+      const response = await fetch("/api/projects/" + id + "/export", { headers: { "X-Requested-With": "BugAI" }, credentials: "same-origin" });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Export failed");
       const name = (response.headers.get("content-disposition") || "").match(/filename="([^"]+)"/)?.[1] || "project.zip";
       const a = document.createElement("a"); a.href = URL.createObjectURL(await response.blob()); a.download = name; a.click(); URL.revokeObjectURL(a.href);

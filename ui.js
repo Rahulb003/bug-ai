@@ -1,6 +1,8 @@
 const App = (() => {
   const state = {
-    token: localStorage.getItem("bugzero_token") || "",
+    // The session token lives in an httpOnly cookie set by the server; page
+    // scripts never see it. Only the user profile is kept here.
+    token: "",
     user: JSON.parse(localStorage.getItem("bugzero_user") || "null"),
     apiBase: localStorage.getItem("bugzero_api_base") || ""
   };
@@ -141,17 +143,21 @@ const App = (() => {
   }
 
   function saveSession(session) {
-    state.token = session.token;
     state.user = session.user;
-    localStorage.setItem("bugzero_token", session.token);
     localStorage.setItem("bugzero_user", JSON.stringify(session.user));
+    localStorage.removeItem("bugzero_token"); // legacy storage from earlier versions
   }
 
   function clearSession() {
-    state.token = "";
     state.user = null;
     localStorage.removeItem("bugzero_token");
     localStorage.removeItem("bugzero_user");
+  }
+
+  async function logout() {
+    try { await fetch("/api/auth/logout", { method: "POST", headers: { "X-Requested-With": "BugAI" } }); } catch { /* cookie is cleared client-side regardless */ }
+    clearSession();
+    window.location.href = "login.html";
   }
 
   function getUser() {
@@ -159,7 +165,7 @@ const App = (() => {
   }
 
   function isAuthed() {
-    return Boolean(state.token);
+    return Boolean(state.user);
   }
 
   function requireAuth(redirect = "login.html") {
@@ -183,9 +189,10 @@ const App = (() => {
         method: options.method || "GET",
         headers: {
           "Content-Type": "application/json",
-          ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
+          "X-Requested-With": "BugAI",
           ...(options.headers || {})
         },
+        credentials: "same-origin",
         body: options.body ? JSON.stringify(options.body) : undefined
       });
     } catch (error) {
@@ -202,6 +209,12 @@ const App = (() => {
       } catch {
         payload = { error: text };
       }
+    }
+    if (response.status === 401 && state.user && !path.startsWith("/auth/")) {
+      // The cookie session expired or was revoked: drop the stale profile and
+      // send the user to sign in rather than leaving a half-authenticated page.
+      clearSession();
+      if (!/login.html|signup.html|index.html/.test(location.pathname)) window.location.href = "login.html";
     }
     if (!response.ok) {
       throw new Error(payload.error || "Request failed");
@@ -223,8 +236,7 @@ const App = (() => {
     document.querySelectorAll(selector).forEach((button) => {
       button.addEventListener("click", (event) => {
         event.preventDefault();
-        clearSession();
-        window.location.href = "login.html";
+        logout();
       });
     });
   }
@@ -402,6 +414,7 @@ const App = (() => {
     getDevopsTemplates,
     requireAuth,
     saveSession,
+    logout,
     showToast,
     applyAppearance
   };
