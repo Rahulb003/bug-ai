@@ -67,11 +67,17 @@ This is **process-level isolation, not container or OS-level sandboxing**, and i
 
 See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for what remains out of scope.
 
+## Brand and startup
+
+The mark is the **BUG-CORE**: two bracket arcs — code's parentheses, a scanner's reticle — enclosing a solid rotated core. It ships as inline SVG ([brand.js](brand.js), `BugBrand.mark({ size, state })`) and as [brand-mark.svg](brand-mark.svg) / [brand-logo.svg](brand-logo.svg). Its states (scanning, finding, fixing, verifying, verified) are set only while the matching operation is actually running or has actually completed.
+
+Startup plays once per tab (~4.4 s): a point of light, the core, the arcs drawing in, the wordmark, a short aurora hold, then the mark travels into the sidebar while the shell assembles beneath it. Skippable after 0.8 s; `prefers-reduced-motion` collapses it to a sub-second crossfade.
+
 ## Design system
 
-The interface follows one token set in [design.css](design.css): layered neutral surfaces (app → sidebar → surface → elevated → popover), three text tiers, structural low-contrast borders, a single selective accent, semantic severity colours, a 4–48px spacing scale, Inter for UI and JetBrains Mono for code, with a light theme. Every page consumes the same primitives from [workspace.css](workspace.css) (`.ws-button`, `.ws-input`, `.ws-table`, `.ws-badge`, `.ws-empty`, `.pg-*` scaffolding, `.db-stats`) and the shared shell in [workspace.js](workspace.js) (sidebar, header, project switcher, notifications, breadcrumb, command palette). Colour marks meaning — active state, severity, success/warning/danger, AI-sourced content — never decoration.
+The interface follows one token set in [design.css](design.css): layered neutral surfaces (app → sidebar → surface → elevated → popover), three text tiers, structural low-contrast borders, a single selective accent, semantic severity colours, a 4–48px spacing scale, Inter for UI and JetBrains Mono for code, with a light theme, three dark variants (Graphite, Obsidian Aurora, Midnight), five accents and three densities set from Settings. Every page consumes the same primitives from [workspace.css](workspace.css) (`.ws-button`, `.ws-input`, `.ws-table`, `.ws-badge`, `.ws-empty`, `.pg-*` scaffolding, `.db-stats`) and the shared shell in [workspace.js](workspace.js) (sidebar, header, project switcher, notifications, breadcrumb, command palette). Colour marks meaning — active state, severity, success/warning/danger, AI-sourced content — never decoration.
 
-**Command palette** (Ctrl/⌘ K) lists only real actions: navigation, *Analyze project* (calls the API), *Open current analysis in Studio*, files of the open project, findings of the current scan, theme/sidebar toggles and log out. Pages can register their own commands with `BugWorkspace.registerCommands`; Code Studio registers Analyze, Fix All, Fix & Verify All, Optimize, Generate Tests, Explain and Save.
+**Command registry** ([workspace.js](workspace.js)): every command is `{ id, label, category, shortcut, when, run }`; the palette (Ctrl/⌘ K, fuzzy match, recents, shortcuts shown), global chords (Mod+B sidebar, Mod+Shift+F focus mode, Mod+S save, Mod+Enter analyze) and Studio's contextual selection bar all read from it. It lists only real actions: navigation, *Analyze project* (calls the API), *Open current analysis in Studio*, files of the open project, findings of the current scan, theme/sidebar toggles and log out. Pages can register their own commands with `BugWorkspace.registerCommands`; Code Studio registers Analyze, Fix All, Fix & Verify All, Optimize, Generate Tests, Explain and Save.
 
 ## Architecture
 
