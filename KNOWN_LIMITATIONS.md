@@ -1,6 +1,6 @@
 # Known limitations
 
-What BUG AI does **not** do, as of `v0.4`. Everything here is deliberate scope or a measured constraint, not an undiscovered bug. See [README.md](README.md) for what is implemented.
+What BUG AI does **not** do, as of `v0.6`. Everything here is deliberate scope or a measured constraint, not an undiscovered bug. See [README.md](README.md) for what is implemented.
 
 ## Analysis
 
@@ -36,18 +36,19 @@ What BUG AI does **not** do, as of `v0.4`. Everything here is deliberate scope o
 - **GitHub is read-only.** Public repositories only, default branch only. No branches, diffs, commit history, commits, pushes or pull requests.
 - **ZIP import drops binaries and enforces 15 MB / 2000 entries / 2 MB per entry.** Absolute paths are normalised to relative (safe, since project files are stored as records); `..` segments and drive prefixes are dropped. Dropped entries are counted and reported.
 - **No per-file delete.** `PUT /projects/:id/files` creates or overwrites; only whole-project deletion exists. Studio's delete icon closes the tab and says so.
+- **Sessions are httpOnly cookies (SameSite=Strict) with a request-header CSRF check; bearer tokens remain for API clients.** Cookies are only marked `Secure` behind HTTPS (or `X-Forwarded-Proto: https`), so a plain-HTTP deployment sends them in clear.
 - **`data/db.json` is a JSON file, not a database.** Writes are atomic (temp file + rename) and read-modify-write runs on a single queue, so concurrent requests no longer see a half-written file or overwrite each other; there is still no locking across processes, no migrations and no indexing. Run one server instance per database file.
 
 ## Interface
 
 - **Sidebar navigation keeps 6 groups** (Main, Analyze, Understand, Development, Insights, System). Technical Debt is not in the sidebar; it is reached from Dashboard, Analytics and the Projects detail card.
-- **Settings has no server-side profile editing.** Password change, profile updates and per-user AI budgets have no endpoint, so the page does not offer them. Preferences (editor, analysis, notifications) are stored per browser in `localStorage`, not per account.
+- **Settings edits username, email and password; preferences follow the account.** There is no email verification, password reset by email, or session revocation list — changing a password does not invalidate existing sessions until they expire (7 days).
 - **The startup animation is cosmetic and skippable.** It plays once per browser session (`sessionStorage`), collapses under `prefers-reduced-motion`, and never gates a real loading step.
-- **No revision store.** Fixes, optimizations and saves are not recorded as numbered revisions, so there is no Compare/Restore between revisions, no undo across sessions, and History's code timeline shows scans only. Adding revisions is a backend change (a `revisions` collection keyed by project/file) that the frontend is already shaped to consume.
-- **No symbol index.** Search covers files (names), findings and commands. Functions, classes, callers and dependents are not indexed; the Architecture and Dependencies pages work from import edges only.
-- **Finding lifecycle is open / reviewed / ignored.** "Fixed" and "verified" are reported by the Fix & Verify pipeline per run, not persisted on the finding; "regressed" is derived only when two analyses are compared.
-- **Split editor is not implemented.** Diff review happens in the Optimizer; the Studio editor is single-pane. Panel sizes are fixed (explorer/side panel can be hidden, not resized).
-- **Notifications link to the scan, not to a finding.** Server notifications carry a title and message; deep links into a specific finding need the notification to store scan and finding ids.
+- **Revisions are per project file, capped at 80 per project.** Every save records before/after with its source; older revisions are dropped first. There is no branch or merge model, and revisions are not linked to scans automatically.
+- **The symbol index is pattern-based.** Functions, classes, arrows, `def`, `func`, `fn` and type declarations are found by regular expression in the open project's files (Studio only). It is not a parser: callers and dependents are still unknown, and unusual declarations are missed.
+- **Finding lifecycle is open / reviewed / ignored / fixed / verified.** Fixed and verified are written by Fix & Verify All from its rescan comparison (verified only when that run's verdict was verified); a later scan does not automatically reopen a finding that came back ("regressed" is visible only in History compare).
+- **Split editing is limited to the revisions diff.** The Studio editor is single-pane; side-by-side view exists for revision compare only. Pane widths are resizable and remembered.
+- **Notifications link to the scan.** Scan notifications open that scan's findings; they do not select an individual finding.
 - **The command palette searches client-side state only.** Files come from the project open in Studio (`window.BugStudioFiles`) and findings from the current scan; there is no server-side full-text search of code, and no fuzzy matching beyond prefix/substring.
 - **Only one icon set.** Icons are inline stroke SVGs defined in `workspace.js`; adding a page means adding an icon there. No icon library is bundled.
 - **Monaco loads from a CDN.** Code Studio requires network access on load; offline, the editor reports that it could not load.
@@ -57,5 +58,6 @@ What BUG AI does **not** do, as of `v0.4`. Everything here is deliberate scope o
 ## Operational
 
 - **The bundled Gemini API key should be treated as compromised, and its free tier is small.** `.env` was present in a zip export of this project; it is gitignored, but rotate it. The free tier allows **20 requests per day per model** (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`), which a single session of manual testing exhausts. Every AI feature then degrades to its documented fallback.
+- **Rate limits are per account (120/min) once signed in and per IP (60/min) before**, held in memory — they reset on restart and are not shared between instances.
 - **`JWT_SECRET` falls back to a hardcoded dev value** (`bugzero-dev-secret`) when unset. Fine locally; set it anywhere else. `GET /system/capabilities` reports `jwtSecretConfigured: false` while the fallback is in use.
 - **The former `POST /auth/google` endpoint was removed, not fixed.** It issued a session for any submitted e-mail without verifying anything, which was an authentication bypass. Google sign-in now needs a real OAuth implementation before it can return.

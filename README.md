@@ -30,7 +30,7 @@ Open `http://127.0.0.1:8080`, then sign in and open `Code Studio`. Run the autom
 - `settings.html` — profile, the AI / sandbox / test-runner capabilities the server actually reports (`GET /api/system/capabilities`, key shown only as a masked hint), editor and analysis preferences that Studio honours, and workspace-state reset.
 - `dashboard.html` — real counts from the latest scan and active project; code quality, complexity and debt scores are shown as NOT MEASURED because nothing computes them.
 
-Current project, selected file, and latest scan persist in browser local storage while the project data itself persists in the server database.
+Current project, selected file, open tabs, unsaved scratch tabs and pane widths persist in browser local storage; preferences persist on the account; project data and revisions persist in the server database.
 
 ## What is real, and what it falls back to
 
@@ -99,7 +99,7 @@ AST-based rules: JavaScript and TypeScript only. Regex static-rule coverage: Pyt
 
 ## API
 
-Authenticated endpoints include `POST /api/scan`, `/api/analyze`, `/api/project/analyze`, `/api/scan-github`, `/api/fix`, `/api/optimize`, `/api/test/generate`, and `/api/verify`. Project APIs are `GET/POST /api/projects`, `GET/PATCH/DELETE /api/projects/:id`, `GET /api/projects/:id/files`, `PUT /api/projects/:id/files`, `POST /api/projects/:id/analyze`, plus `/dependencies` and `/architecture`. Stored reports are available at `GET /api/scans/:id`, `/findings`, and `/verification`; `POST /api/scans/:id/findings/:findingId/status` records triage (`open`, `reviewed`, `ignored`). `GET /api/projects/:id/debt` derives technical debt, `POST /api/translate` and `POST /api/docs` are the translation and documentation proposals, and `GET /api/system/capabilities` reports what this server can actually do. Existing `/api/scan-code` and `/api/upload-project` endpoints remain supported.
+Authenticated endpoints include `POST /api/scan`, `/api/analyze`, `/api/project/analyze`, `/api/scan-github`, `/api/fix`, `/api/optimize`, `/api/test/generate`, and `/api/verify`. Project APIs are `GET/POST /api/projects`, `GET/PATCH/DELETE /api/projects/:id`, `GET /api/projects/:id/files`, `PUT /api/projects/:id/files`, `POST /api/projects/:id/analyze`, plus `/dependencies` and `/architecture`. Sessions: `POST /api/auth/login` and `/register` set an httpOnly cookie (and return a bearer token for API clients); cookie-authenticated writes must send `X-Requested-With: BugAI`; `POST /api/auth/logout`, `POST /api/auth/session` (bearer→cookie), `PATCH /api/auth/me` (username, email, preferences), `POST /api/auth/password`. Revisions: `GET /api/projects/:id/revisions[?file=]`, `GET .../revisions/:rid`, `POST .../revisions/:rid/restore`; `PUT /api/projects/:id/files` accepts `source` and `note`. Stored reports are available at `GET /api/scans/:id`, `/findings`, and `/verification`; `POST /api/scans/:id/findings/:findingId/status` records triage (`open`, `reviewed`, `ignored`). `GET /api/projects/:id/debt` derives technical debt, `POST /api/translate` and `POST /api/docs` are the translation and documentation proposals, and `GET /api/system/capabilities` reports what this server can actually do. Existing `/api/scan-code` and `/api/upload-project` endpoints remain supported.
 
 ## Verification and security limits
 
