@@ -216,7 +216,7 @@ const BugWorkspace = (() => {
     if (profileCache) return profileCache;
     const cached = cacheGet("profile");
     if (cached) profileCache = cached;
-    else { try { profileCache = (await App.api("/auth/me")).user || null; cacheSet("profile", profileCache); } catch { profileCache = null; } }
+    else { try { profileCache = (await App.api("/auth/me")).user || null; cacheSet("profile", profileCache); if (profileCache) App.saveSession({ user: profileCache }); } catch { profileCache = null; } }
     const initials = profileCache ? initialsOf(profileCache.username, profileCache.email) : "?";
     const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
     set("ws-profile-name", profileCache?.username || "Not signed in");

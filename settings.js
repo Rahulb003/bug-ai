@@ -7,7 +7,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Defaults are what the pages already assume, so an unset preference changes nothing.
   const DEFAULTS = { theme: "system", variant: "graphite", accent: "indigo", density: "comfortable", editorFontSize: 13, editorMinimap: true, editorWordWrap: false, defaultLanguage: "auto", includeAiOnScan: true, toasts: true, confirmAiFixes: true };
   const load = () => { try { return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem("bugai_prefs") || "{}")) }; } catch { return { ...DEFAULTS }; } };
-  const save = (prefs) => { try { localStorage.setItem("bugai_prefs", JSON.stringify(prefs)); } catch { /* private mode */ } };
+  let syncTimer = null;
+  const save = (prefs) => {
+    try { localStorage.setItem("bugai_prefs", JSON.stringify(prefs)); } catch { /* private mode */ }
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => App.api("/auth/me", { method: "PATCH", body: { preferences: prefs } }).then((out) => App.saveSession({ user: out.user })).catch(() => { /* local copy still applies */ }), 300);
+  };
   let prefs = load();
 
   root.innerHTML = BugPages.header({ title: "Settings", subtitle: "Profile and configuration status come from the server; preferences are stored in this browser only." })
@@ -51,8 +56,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Server-backed sections.
   const [profile, caps] = await Promise.all([BugWorkspace.loadProfile(), App.api("/system/capabilities").catch((e) => ({ error: e.message }))]);
   document.getElementById("s-profile").innerHTML = "<h3>Profile</h3>" + (profile
-    ? '<dl class="pg-kv"><dt>Username</dt><dd>' + esc(profile.username) + "</dd><dt>Email</dt><dd>" + esc(profile.email) + "</dd><dt>Role</dt><dd>" + esc(profile.role || "user") + "</dd><dt>Member since</dt><dd>" + esc(profile.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—") + '</dd></dl><p class="ws-muted">Password change and profile editing have no server endpoint yet, so they are not offered here.</p>'
+    ? '<dl class="pg-kv"><dt>Role</dt><dd>' + esc(profile.role || "user") + "</dd><dt>Member since</dt><dd>" + esc(profile.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "—") + "</dd></dl>"
+      + '<form id="pf-form" class="s-form"><label class="s-row"><span>Username</span><input class="ws-input" id="pf-username" style="width:220px" value="' + esc(profile.username) + '" autocomplete="username"></label><label class="s-row"><span>Email</span><input class="ws-input" id="pf-email" type="email" style="width:220px" value="' + esc(profile.email) + '" autocomplete="email"></label><div class="s-row"><span class="ws-muted" id="pf-status"></span><button class="ws-button" type="submit">Save profile</button></div></form>'
+      + '<form id="pw-form" class="s-form"><label class="s-row"><span>Current password</span><input class="ws-input" id="pw-current" type="password" style="width:220px" autocomplete="current-password" required></label><label class="s-row"><span>New password <small class="ws-muted">(8+ characters)</small></span><input class="ws-input" id="pw-new" type="password" style="width:220px" autocomplete="new-password" minlength="8" required></label><div class="s-row"><span class="ws-muted" id="pw-status"></span><button class="ws-button" type="submit">Change password</button></div></form>'
+      + '<p class="ws-muted">Preferences on this page are saved to your account and follow you across browsers.</p>'
     : '<p class="ws-muted">Profile could not be loaded.</p>');
+  document.getElementById("pf-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const status = document.getElementById("pf-status");
+    try {
+      const out = await App.api("/auth/me", { method: "PATCH", body: { username: document.getElementById("pf-username").value, email: document.getElementById("pf-email").value } });
+      App.saveSession({ user: out.user }); BugWorkspace.cacheClear("profile");
+      status.textContent = "Saved."; App.showToast("Profile updated.", "success", "Settings");
+      setTimeout(() => location.reload(), 500);
+    } catch (error) { status.textContent = error.message; }
+  });
+  document.getElementById("pw-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const status = document.getElementById("pw-status");
+    try {
+      await App.api("/auth/password", { method: "POST", body: { currentPassword: document.getElementById("pw-current").value, newPassword: document.getElementById("pw-new").value } });
+      e.target.reset(); status.textContent = "Password changed."; App.showToast("Password changed.", "success", "Settings");
+    } catch (error) { status.textContent = error.message; }
+  });
   if (caps.error) {
     document.getElementById("s-ai").innerHTML = "<h3>AI configuration</h3><p class=\"ws-muted\">" + esc(caps.error) + "</p>";
     document.getElementById("s-env").innerHTML = "<h3>Verification environment</h3><p class=\"ws-muted\">" + esc(caps.error) + "</p>";

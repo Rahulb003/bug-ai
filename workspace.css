@@ -618,3 +618,5 @@ body.studio-focus .st-actionbar::before { content: "Focus mode · Esc to exit"; 
 .ws-pin.on { color: var(--accent-primary); }
 .ws-pin .ws-i { width: 13px; height: 13px; }
 .ws-table td .ws-pin { width: 24px; height: 24px; }
+.s-form { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--border-subtle); }
+.s-form .s-row input { width: 220px; }

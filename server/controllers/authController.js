@@ -1,4 +1,6 @@
 import {
+  changePassword,
+  updateProfile,
   createSession,
   findUserByToken,
   loginUser,
@@ -30,3 +32,6 @@ export const logoutController = asyncHandler(async (req, res) => {
   res.setHeader("Set-Cookie", sessionCookie("", req, { clear: true }));
   res.json({ ok: true });
 });
+
+export const updateProfileController = asyncHandler(async (req, res) => res.json(await updateProfile(req.user, req.body)));
+export const changePasswordController = asyncHandler(async (req, res) => res.json(await changePassword(req.user, req.body)));

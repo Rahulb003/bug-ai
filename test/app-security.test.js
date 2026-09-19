@@ -96,3 +96,27 @@ test("rate limiter keys authenticated traffic per account, anonymous per IP", as
   const anon = await run({});
   assert.equal(anon.limit, 60, "anonymous traffic gets the smaller per-IP budget");
 });
+
+test("profile: update username/email/preferences, change password, passwords keep their characters", async (t) => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  t.after(() => server.close());
+  const base = `http://127.0.0.1:${server.address().port}/api`;
+  const u = Math.random().toString(36).slice(2, 8);
+  const pw = "p<ss>w{o}rd'\"1";
+  const json = (r) => r.json();
+  const reg = await json(await fetch(`${base}/auth/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "pf" + u, email: `pf${u}@example.test`, password: pw }) }));
+  const H = { "Content-Type": "application/json", Authorization: `Bearer ${reg.token}` };
+  assert.equal((await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "pf" + u, password: pw }) })).status, 200, "special characters in a password survive the sanitizer");
+  const upd = await json(await fetch(`${base}/auth/me`, { method: "PATCH", headers: H, body: JSON.stringify({ username: "pf" + u + "x", preferences: { density: "compact", accent: "violet", junk: "ignored", editorFontSize: 15 } }) }));
+  assert.equal(upd.user.username, "pf" + u + "x");
+  assert.deepEqual(upd.user.preferences, { density: "compact", accent: "violet", editorFontSize: 15 }, "only allow-listed preference keys are stored");
+  assert.equal((await fetch(`${base}/auth/me`, { method: "PATCH", headers: H, body: JSON.stringify({ email: "not-an-email" }) })).status, 400);
+  const other = await json(await fetch(`${base}/auth/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "pg" + u, email: `pg${u}@example.test`, password: "safe-password" }) }));
+  assert.equal((await fetch(`${base}/auth/me`, { method: "PATCH", headers: H, body: JSON.stringify({ username: other.user.username }) })).status, 409, "cannot take another user's name");
+  assert.equal((await fetch(`${base}/auth/password`, { method: "POST", headers: H, body: JSON.stringify({ currentPassword: "wrong", newPassword: "new-password-1" }) })).status, 401);
+  assert.equal((await fetch(`${base}/auth/password`, { method: "POST", headers: H, body: JSON.stringify({ currentPassword: pw, newPassword: "short" }) })).status, 400);
+  assert.equal((await fetch(`${base}/auth/password`, { method: "POST", headers: H, body: JSON.stringify({ currentPassword: pw, newPassword: "new-password-1" }) })).status, 200);
+  assert.equal((await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "pf" + u + "x", password: "new-password-1" }) })).status, 200);
+  assert.equal((await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "pf" + u + "x", password: pw }) })).status, 401, "old password no longer works");
+});

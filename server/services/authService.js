@@ -1,4 +1,4 @@
-import { createUserRecord, findUserByEmail, findUserById, findUserByUsername, upsertUser } from "../models/userModel.js";
+import { createUserRecord, findUserByEmail, findUserById, findUserByUsername, upsertUser, updateUserById } from "../models/userModel.js";
 import { attachWorkspaceInvites, claimWorkspaceInvite } from "../models/workspaceModel.js";
 import { createAppError } from "../utils/errors.js";
 import { generateId, hashPassword, verifyPassword } from "../utils/hash.js";
@@ -11,7 +11,8 @@ function toPublicUser(user) {
     email: user.email,
     role: user.role,
     provider: user.provider,
-    createdAt: user.createdAt
+    createdAt: user.createdAt,
+    preferences: user.preferences || {}
   };
 }
 
@@ -100,4 +101,46 @@ export async function findUserByToken(token) {
   }
 
   return toPublicUser(user);
+}
+
+// Profile fields a user may change about themselves. Preferences are an
+// allow-listed object so the record cannot be used as arbitrary storage.
+const PREF_KEYS = ["theme", "variant", "accent", "density", "editorFontSize", "editorMinimap", "editorWordWrap", "defaultLanguage", "includeAiOnScan", "toasts", "confirmAiFixes"];
+export async function updateProfile(user, payload = {}) {
+  const patch = {};
+  if (payload.username !== undefined) {
+    const username = String(payload.username).trim();
+    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) throw createAppError(400, "Username must be 3-32 characters: letters, digits, . _ -");
+    const taken = await findUserByUsername(username);
+    if (taken && taken.id !== user.id) throw createAppError(409, "Username already exists.");
+    patch.username = username;
+  }
+  if (payload.email !== undefined) {
+    const email = String(payload.email).trim().toLowerCase();
+    if (!isValidEmail(email)) throw createAppError(400, "Enter a valid email address.");
+    const taken = await findUserByEmail(email);
+    if (taken && taken.id !== user.id) throw createAppError(409, "Email already registered.");
+    patch.email = email;
+  }
+  if (payload.preferences !== undefined) {
+    if (!payload.preferences || typeof payload.preferences !== "object" || Array.isArray(payload.preferences)) throw createAppError(400, "Preferences must be an object.");
+    const prefs = {};
+    for (const key of PREF_KEYS) if (key in payload.preferences) { const v = payload.preferences[key]; if (["string", "number", "boolean"].includes(typeof v) && String(v).length <= 40) prefs[key] = v; }
+    patch.preferences = prefs;
+  }
+  if (!Object.keys(patch).length) throw createAppError(400, "Nothing to update.");
+  const updated = await updateUserById(user.id, patch);
+  if (!updated) throw createAppError(404, "User not found.");
+  return { user: toPublicUser(updated) };
+}
+
+export async function changePassword(user, payload = {}) {
+  const current = String(payload.currentPassword || "");
+  const next = String(payload.newPassword || "");
+  const record = await findUserById(user.id);
+  if (!record || !verifyPassword(current, record.passwordHash)) throw createAppError(401, "Current password is incorrect.");
+  if (next.length < 8) throw createAppError(400, "New password must be at least 8 characters.");
+  if (next === current) throw createAppError(400, "New password must differ from the current one.");
+  await updateUserById(user.id, { passwordHash: hashPassword(next), passwordChangedAt: new Date().toISOString() });
+  return { ok: true };
 }

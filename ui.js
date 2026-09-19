@@ -145,6 +145,15 @@ const App = (() => {
   function saveSession(session) {
     state.user = session.user;
     localStorage.setItem("bugzero_user", JSON.stringify(session.user));
+    // Account preferences follow the user across browsers.
+    if (session.user?.preferences && Object.keys(session.user.preferences).length) {
+      try {
+        const local = JSON.parse(localStorage.getItem("bugai_prefs") || "{}");
+        localStorage.setItem("bugai_prefs", JSON.stringify({ ...local, ...session.user.preferences }));
+        if (session.user.preferences.theme) localStorage.setItem("bugzero_theme", session.user.preferences.theme);
+        applyAppearance();
+      } catch { /* ignore */ }
+    }
     localStorage.removeItem("bugzero_token"); // legacy storage from earlier versions
   }
 

@@ -2,7 +2,7 @@
 // body. Stripping angle brackets from these silently corrupts comparisons,
 // generics, JSX, HTML and arrow functions ("=>" becomes "="). Only metadata
 // is normalised; source is validated at each API boundary instead.
-const SOURCE_KEYS = new Set(["code", "content", "source", "files", "selection", "optimizedCode", "suggestedFix", "patch", "originalCode", "tests"]);
+const SOURCE_KEYS = new Set(["code", "content", "source", "files", "selection", "optimizedCode", "suggestedFix", "patch", "originalCode", "tests", "password", "currentPassword", "newPassword"]);
 
 function sanitizeString(value) {
   return value

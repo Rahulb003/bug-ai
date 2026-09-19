@@ -40,3 +40,13 @@ export async function upsertUser(user) {
   });
   return user;
 }
+
+export async function updateUserById(id, patch) {
+  let updated = null;
+  await updateDatabase((db) => {
+    const index = db.users.findIndex((entry) => entry.id === id);
+    if (index >= 0) { db.users[index] = { ...db.users[index], ...patch }; updated = db.users[index]; }
+    return db;
+  });
+  return updated;
+}
