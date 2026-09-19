@@ -12,11 +12,12 @@ const BugMotion = (() => {
   // Reduced motion collapses it to a short crossfade. Nothing here represents
   // loading or progress; the page beneath is already rendered.
   async function boot({ short = false } = {}) {
-    // Once per tab, and no more than once every 12 hours across tabs — opening
-    // a second tab should not replay the whole sequence.
+    // Plays every time the site is opened (each new tab or window), on
+    // whichever page is opened first; not again while navigating inside
+    // that tab. Skippable at any time after 0.8s.
     let played = false;
-    try { played = sessionStorage.getItem("bugai_booted") === "1" || (Date.now() - Number(localStorage.getItem("bugai_boot_at") || 0)) < 12 * 3600 * 1000; } catch { played = false; }
-    const done = () => { try { sessionStorage.setItem("bugai_booted", "1"); localStorage.setItem("bugai_boot_at", String(Date.now())); } catch { /* ignore */ } };
+    try { played = sessionStorage.getItem("bugai_booted") === "1"; } catch { played = false; }
+    const done = () => { try { sessionStorage.setItem("bugai_booted", "1"); } catch { /* ignore */ } };
     if (played) { done(); return; }
     const markSvg = window.BugBrand ? BugBrand.mark({ size: 96 }) : "";
     const el = document.createElement("div");

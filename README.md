@@ -71,7 +71,7 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for what remains out of scope.
 
 The mark is the **BUG-CORE**: two bracket arcs — code's parentheses, a scanner's reticle — enclosing a solid rotated core. It ships as inline SVG ([brand.js](brand.js), `BugBrand.mark({ size, state })`) and as [brand-mark.svg](brand-mark.svg) / [brand-logo.svg](brand-logo.svg). Its states (scanning, finding, fixing, verifying, verified) are set only while the matching operation is actually running or has actually completed.
 
-Startup plays once per tab (~4.4 s): a point of light, the core, the arcs drawing in, the wordmark, a short aurora hold, then the mark travels into the sidebar while the shell assembles beneath it. Skippable after 0.8 s; `prefers-reduced-motion` collapses it to a sub-second crossfade.
+Startup plays every time the site is opened — each new tab or window, on whichever page opens first — and not again while navigating within that tab (~4.4 s): a point of light, the core, the arcs drawing in, the wordmark, a short aurora hold, then the mark travels into the sidebar while the shell assembles beneath it. Skippable after 0.8 s; `prefers-reduced-motion` collapses it to a sub-second crossfade.
 
 ## Design system
 

@@ -127,7 +127,8 @@ const BugWorkspace = (() => {
       </main>`;
     renderContext();
     wireTopbar();
-    if (page === "dashboard" && window.BugMotion) BugMotion.boot({ short: true }).then(maybeOnboard);
+    // Whichever page opens the site first plays the startup sequence.
+    if (window.BugMotion) BugMotion.boot({ short: false }).then(() => { if (page === "dashboard") maybeOnboard(); });
     else if (page === "dashboard") maybeOnboard();
   }
 

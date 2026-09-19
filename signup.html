@@ -25,6 +25,7 @@
 document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("brand-mark").innerHTML = BugBrand.mark({ size: 22 });
   if (App.isAuthenticated()) { location.replace("dashboard.html"); return; }
+  if (window.BugMotion) BugMotion.boot({ short: false }); // startup plays on whichever page opens the site
   const status = document.getElementById("server-status");
   const ok = await App.checkServerConnection();
   status.textContent = ok ? "" : "Backend not reachable. Start the server with npm start, then refresh.";
@@ -34,7 +35,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const btn = document.getElementById("signup-btn");
     try {
       await BugMotion.busy(btn, App.api("/auth/register", { method: "POST", body: { username: document.getElementById("username").value, email: document.getElementById("email").value, password: document.getElementById("password").value } }).then((session) => { App.saveSession(session); }), { busyLabel: "Creating…", doneLabel: "✓ Created", holdMs: 300 });
-      try { sessionStorage.removeItem("bugai_booted"); } catch { /* ignore */ }
       location.href = "dashboard.html";
     } catch (error) { status.textContent = error.message; status.classList.add("bad"); }
   });
