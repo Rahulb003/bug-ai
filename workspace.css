@@ -479,7 +479,6 @@ body.workspace-page .ws-empty p, .ws-empty p { font-size: 13px; max-width: 460px
 [hidden] { display: none !important; }
 
 /* ---- responsive ----------------------------------------------------------- */
-@media (max-width: 1400px) { .studio8 { grid-template-columns: 224px minmax(0, 1fr) 340px; } }
 @media (max-width: 1150px) {
   .studio8 { grid-template-columns: 1fr; height: auto; }
   .st-editor { min-height: 360px; }
@@ -599,3 +598,23 @@ body.studio-focus .st-actionbar::before { content: "Focus mode · Esc to exit"; 
 @media (max-width: 800px) { .st-drawer-body { grid-template-columns: 1fr; grid-template-rows: 180px minmax(0, 1fr); } .st-revlist { border-right: 0; border-bottom: 1px solid var(--border-subtle); } }
 .pg-triage.fixed { background: color-mix(in srgb, var(--info) 14%, transparent); color: var(--info); border-color: transparent; }
 .pg-triage.verified { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); border-color: transparent; }
+/* Resizable Studio panes */
+.studio8 { position: relative; grid-template-columns: var(--st-left, 248px) minmax(0, 1fr) var(--st-right, 380px); }
+.studio8.no-explorer { grid-template-columns: 0 minmax(0, 1fr) var(--st-right, 380px); }
+.studio8.no-right { grid-template-columns: var(--st-left, 248px) minmax(0, 1fr) 0; }
+.st-resizer { position: absolute; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 4; }
+.st-resizer-left { left: calc(var(--st-left, 248px) - 4px); }
+.st-resizer-right { right: calc(var(--st-right, 380px) - 4px); }
+.st-resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background var(--m-fast, 140ms); }
+.st-resizer:hover::after, .st-resizer:active::after { background: var(--accent-primary); }
+.studio8.no-explorer .st-resizer-left, .studio8.no-right .st-resizer-right { display: none; }
+@media (max-width: 1150px) { .st-resizer { display: none; } .studio8, .studio8.no-explorer, .studio8.no-right { grid-template-columns: 1fr; } }
+@media (max-width: 1400px) { .studio8 { grid-template-columns: var(--st-left, 224px) minmax(0, 1fr) var(--st-right, 340px); } }
+/* Pins */
+.ws-menu-row { display: flex; align-items: center; gap: 2px; }
+.ws-menu-row > button:first-child { flex: 1; }
+.ws-pin { flex: none; width: 26px; height: 26px; display: grid; place-items: center; border: 0; background: transparent; color: var(--text-disabled); border-radius: 4px; cursor: pointer; padding: 0; }
+.ws-pin:hover { color: var(--text-secondary); background: var(--bg-hover); }
+.ws-pin.on { color: var(--accent-primary); }
+.ws-pin .ws-i { width: 13px; height: 13px; }
+.ws-table td .ws-pin { width: 24px; height: 24px; }

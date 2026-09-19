@@ -30,7 +30,8 @@ const BugWorkspace = (() => {
     arrow: '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
     logout: '<path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="m15 8 4 4-4 4M19 12H9"/>',
     file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
-    sidebar: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>'
+    sidebar: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+    pin: '<path d="M12 17v5"/><path d="M9 3h6l-1 7 3 3H7l3-3z"/>'
   };
   const icon = (name, cls = "") => `<svg class="ws-i ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[name] || ""}</svg>`;
 
@@ -247,12 +248,17 @@ const BugWorkspace = (() => {
     renderBreadcrumb();
   }
 
+  const pinned = () => { try { return JSON.parse(localStorage.getItem("bugai_pinned") || "[]"); } catch { return []; } };
+  function togglePin(id) { const list = pinned(); const next = list.includes(id) ? list.filter((x) => x !== id) : [id, ...list]; try { localStorage.setItem("bugai_pinned", JSON.stringify(next)); } catch { /* ignore */ } return next.includes(id); }
+  const sortPinned = (projects) => { const p = pinned(); return projects.slice().sort((a, b) => (p.includes(b.id) ? 1 : 0) - (p.includes(a.id) ? 1 : 0)); };
   async function renderProjectMenu() {
     const menu = document.getElementById("ws-project-menu");
-    const projects = await loadProjectsCached(true);
+    const projects = sortPinned(await loadProjectsCached(true));
+    const pins = pinned();
     menu.innerHTML = projects.length
-      ? projects.map((p) => `<button type="button" data-pick="${esc(p.id)}" class="${p.id === selectedProject() ? "active" : ""}">${icon("folder")} <span>${esc(p.name)}</span><small>${p.fileCount} files</small></button>`).join("")
+      ? projects.map((p) => `<div class="ws-menu-row"><button type="button" data-pick="${esc(p.id)}" class="${p.id === selectedProject() ? "active" : ""}">${icon("folder")} <span>${esc(p.name)}</span><small>${p.fileCount} files</small></button><button type="button" class="ws-pin ${pins.includes(p.id) ? "on" : ""}" data-pin="${esc(p.id)}" title="${pins.includes(p.id) ? "Unpin" : "Pin"}" aria-label="Pin project">${icon("pin")}</button></div>`).join("")
       : `<div class="ws-menu-empty">No saved projects. <a href="projects.html">Create one</a></div>`;
+    menu.querySelectorAll("[data-pin]").forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); togglePin(b.dataset.pin); renderProjectMenu(); }));
     menu.querySelectorAll("[data-pick]").forEach((button) => button.addEventListener("click", () => {
       setContext({ projectId: button.dataset.pick });
       closeMenus();
@@ -341,14 +347,15 @@ const BugWorkspace = (() => {
     const scan = currentScan();
     const files = (window.BugStudioFiles || []).map((name) => ({ id: `file.${name}`, label: name, category: "Files", icon: "file", sub: "Open in editor", run: () => jump({ kind: "file", label: name }) }));
     const findings = (scan?.findings || []).map((f) => ({ id: `finding.${f.id}`, label: f.title, category: "Findings", icon: "bug", sub: `${f.file || "snippet"}:${f.line || "?"} · ${f.severity}`, run: () => jump({ kind: "finding", label: f.title, file: f.file, line: f.line, findingId: f.id }) }));
-    return [...files, ...findings];
+    const symbols = (window.BugStudioSymbols || []).map((s) => ({ id: `symbol.${s.file}:${s.line}`, label: s.name, category: "Symbols", icon: "file", sub: `${s.kind} · ${s.file}:${s.line}`, run: () => jump({ kind: "file", label: s.file, file: s.file, line: s.line }) }));
+    return [...files, ...findings, ...symbols];
   }
   function availableCommands() {
     return [...registry.values(), ...dynamicCommands()].filter((c) => !c.when || c.when());
   }
   function runCommand(id) { const c = registry.get(id); if (c && (!c.when || c.when())) return c.run(); }
   function jump(hit) {
-    if (page === "studio") window.dispatchEvent(new CustomEvent("bugai:jump", { detail: hit }));
+    if (page === "studio") window.dispatchEvent(new CustomEvent("bugai:jump", { detail: { ...hit, label: hit.file || hit.label } }));
     else openInStudio({ file: hit.file || hit.label, line: hit.line, findingId: hit.findingId });
   }
 
@@ -386,7 +393,7 @@ const BugWorkspace = (() => {
     document.body.appendChild(paletteEl);
     const input = paletteEl.querySelector("input");
     const list = paletteEl.querySelector(".cp-list");
-    const ORDER = ["Recent", "Studio", "Actions", "Navigate", "Files", "Findings"];
+    const ORDER = ["Recent", "Studio", "Actions", "Navigate", "Files", "Symbols", "Findings"];
     const rank = (g) => { const i = ORDER.indexOf(g); return i < 0 ? ORDER.length : i; };
     function paint() {
       const q = input.value.trim().toLowerCase();
@@ -491,7 +498,7 @@ const BugWorkspace = (() => {
   async function loadProjects() { return (await App.api("/projects")).projects || []; }
   function requireScan(target) { const scan = currentScan(); if (!scan) { target.innerHTML = `<div class="ws-empty"><h2>No active analysis</h2><p>Open Code Studio, analyze code, then return here.</p><a class="ws-button primary" href="studio.html">Open Code Studio</a></div>`; return null; } return scan; }
 
-  return { renderShell, setContext, cacheClear, registerCommands, runCommand, availableCommands, openPalette, resolveScanFromUrl, setFindingStatus, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
+  return { renderShell, setContext, cacheClear, registerCommands, runCommand, availableCommands, openPalette, pinned, togglePin, sortPinned, resolveScanFromUrl, setFindingStatus, selectedProject, selectedFile, currentScan, esc, findingCard, loadProjects, requireScan, icon, renderBreadcrumb, refreshNotificationBadge, loadProfile, openInStudio, maskSecret, emptyState };
 })();
 window.BugWorkspace = BugWorkspace;
 document.addEventListener("DOMContentLoaded", () => { BugWorkspace.renderShell(); });

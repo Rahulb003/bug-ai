@@ -29,10 +29,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     let projects;
     try { projects = await BugWorkspace.loadProjects(); } catch (error) { document.getElementById("projects-list").innerHTML = BugWorkspace.emptyState({ title: "Could not load projects", body: error.message }); return; }
     document.getElementById("projects-list").classList.toggle("ws-empty", !projects.length);
+    projects = BugWorkspace.sortPinned(projects);
+    const pins = BugWorkspace.pinned();
     document.getElementById("projects-list").innerHTML = projects.length
-      ? '<table class="ws-table"><thead><tr><th>Name</th><th>Languages</th><th>Files</th><th>Last analysis</th><th></th></tr></thead><tbody>' + projects.map((p) => "<tr" + (p.id === BugWorkspace.selectedProject() ? ' class="selected-row"' : "") + "><td>" + esc(p.name) + "</td><td>" + esc(p.languages.join(", ") || "Unknown") + "</td><td>" + p.fileCount + "</td><td>" + (p.lastAnalysis ? esc(String(p.lastAnalysis.verification.status).replaceAll("_", " ")) : "Not analyzed") + '</td><td><button class="ws-button" data-open="' + esc(p.id) + '">Open</button> <a class="ws-button" data-export="' + esc(p.id) + '">Download ZIP</a> <button class="ws-button danger" data-delete="' + esc(p.id) + '">Delete</button></td></tr>').join("") + "</tbody></table>"
+      ? '<table class="ws-table"><thead><tr><th></th><th>Name</th><th>Languages</th><th>Files</th><th>Last analysis</th><th></th></tr></thead><tbody>' + projects.map((p) => "<tr" + (p.id === BugWorkspace.selectedProject() ? ' class="selected-row"' : "") + '><td><button class="ws-pin ' + (pins.includes(p.id) ? "on" : "") + '" data-pin="' + esc(p.id) + '" title="' + (pins.includes(p.id) ? "Unpin" : "Pin") + '" aria-label="Pin project">' + icon("pin") + "</button></td><td>" + esc(p.name) + "</td><td>" + esc(p.languages.join(", ") || "Unknown") + "</td><td>" + p.fileCount + "</td><td>" + (p.lastAnalysis ? esc(String(p.lastAnalysis.verification.status).replaceAll("_", " ")) : "Not analyzed") + '</td><td><button class="ws-button" data-open="' + esc(p.id) + '">Open</button> <a class="ws-button" data-export="' + esc(p.id) + '">Download ZIP</a> <button class="ws-button danger" data-delete="' + esc(p.id) + '">Delete</button></td></tr>').join("") + "</tbody></table>"
       : BugWorkspace.emptyState({ title: "No projects yet", body: "Create one from files, upload a ZIP, or import a public GitHub repository above." });
     document.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => open(b.dataset.open));
+    document.querySelectorAll("[data-pin]").forEach((b) => b.onclick = () => { BugWorkspace.togglePin(b.dataset.pin); render(); });
     document.querySelectorAll("[data-export]").forEach((b) => b.onclick = () => download(b.dataset.export));
     document.querySelectorAll("[data-delete]").forEach((b) => b.onclick = async () => {
       if (!confirm("Delete this project? Its files will be removed from BUG AI storage.")) return;

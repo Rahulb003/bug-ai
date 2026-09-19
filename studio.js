@@ -121,6 +121,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   new MutationObserver(() => monaco.editor.setTheme(themeName())).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => BugWorkspace.openPalette());
   const code = () => editor.getModel()?.getValue() || "";
   const name = () => openFiles[activeIndex]?.name || "scratch.py";
   const lang = () => openFiles[activeIndex]?.language || "auto";
@@ -138,7 +139,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ------------------------------------------------------------- tab handling
   const findingsFor = (fileName) => { try { return (lastScan?.findings || []).filter((f) => (f.file || lastScan?.sourceName) === fileName && f.triage?.status !== "ignored"); } catch { return []; } };
+  let bootstrapped = false; // scratch is only written after the initial restore, or a reload would wipe it
+  function persistScratch() {
+    if (!bootstrapped) return;
+    try {
+      const scratch = {};
+      openFiles.filter((f) => !projectFiles.some((p) => p.name === f.name) && f.model.getValue().trim()).forEach((f) => { scratch[f.name] = { content: f.model.getValue().slice(0, 200000), language: f.language }; });
+      localStorage.setItem("bugai_studio_scratch", JSON.stringify(scratch));
+    } catch { /* ignore */ }
+  }
   function persistTabs() {
+    persistScratch();
     try { localStorage.setItem("bugai_studio_tabs", JSON.stringify({ projectId: currentProjectId || "", names: openFiles.filter((f) => !f.dirty || projectFiles.some((p) => p.name === f.name)).map((f) => f.name), active: openFiles[activeIndex]?.name || "" })); } catch { /* ignore */ }
   }
   function renderTabs() {
@@ -171,7 +182,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (activeIndex >= 0 && openFiles[activeIndex]) openFiles[activeIndex].viewState = editor.saveViewState();
     const model = monaco.editor.createModel(String(content ?? ""), monacoLangFor(language));
     const entry = { name: fileName, language: language || "auto", model, dirty: Boolean(dirty), viewState: null, decorations: [] };
-    model.onDidChangeContent(() => { if (!entry.dirty) { entry.dirty = true; renderTabs(); } });
+    let scratchTimer = null;
+    model.onDidChangeContent(() => { if (!entry.dirty) { entry.dirty = true; renderTabs(); } clearTimeout(scratchTimer); scratchTimer = setTimeout(persistScratch, 400); });
     openFiles.push(entry); activeIndex = openFiles.length - 1;
     editor.setModel(model); clearDiagnostics(); renderTabs(); syncStatus(); editor.focus();
   }
@@ -211,6 +223,26 @@ document.addEventListener("DOMContentLoaded", async () => {
   const sevClass = (s) => String(s || "info").toLowerCase();
   function severityToMonaco(sev) { const s = String(sev || "").toUpperCase(); if (s === "CRITICAL" || s === "HIGH") return monaco.MarkerSeverity.Error; if (s === "MEDIUM") return monaco.MarkerSeverity.Warning; return monaco.MarkerSeverity.Info; }
   function clearDiagnostics() { const m = editor.getModel(); if (m) monaco.editor.setModelMarkers(m, "bugai", []); const f = openFiles[activeIndex]; if (f) f.decorations = editor.deltaDecorations(f.decorations || [], []); }
+  // Inline intelligence: hover on a flagged line. Command links call the same
+  // operations the panel offers; nothing here is generated on the fly.
+  monaco.editor.registerCommand("bugai.finding.show", (_acc, id) => showFinding(id));
+  monaco.editor.registerCommand("bugai.finding.explain", (_acc, id) => { showFinding(id); showRight("explainer"); const f = (lastScan?.findings || []).find((x) => x.id === id); if (f) { editor.setSelection(new monaco.Range(f.line || 1, 1, f.line || 1, editor.getModel().getLineMaxColumn(f.line || 1))); runExplain(false); } });
+  monaco.editor.registerCommand("bugai.finding.optimize", (_acc, id) => { showFinding(id); document.getElementById("act-optimize").click(); });
+  monaco.editor.registerCommand("bugai.finding.ignore", (_acc, id) => BugWorkspace.setFindingStatus(id, "ignored").then(() => { renderFindings(BugWorkspace.currentScan() || lastScan); paintDiagnostics(); }).catch((e) => App.showToast(e.message, "error", "Triage")));
+  monaco.languages.registerHoverProvider("*", {
+    provideHover(model, position) {
+      const entry = openFiles.find((f) => f.model === model); if (!entry) return null;
+      const here = (lastScan?.findings || []).filter((f) => (!f.file || f.file === entry.name || openFiles.length === 1) && (f.line || 1) === position.lineNumber && f.triage?.status !== "ignored");
+      if (!here.length) return null;
+      const md = here.map((f) => {
+        const ev = Array.isArray(f.evidence) ? f.evidence.join(" ") : (f.whyItHappens || "");
+        const arg = encodeURIComponent(JSON.stringify(f.id));
+        return `**${f.severity}** · ${f.title}  \n${f.description || ""}${ev ? `  \n\`${ev.replace(/\`/g, "'").slice(0, 120)}\`` : ""}  \n[Details](command:bugai.finding.show?${arg}) · [Explain](command:bugai.finding.explain?${arg}) · [Optimizer](command:bugai.finding.optimize?${arg}) · [Ignore](command:bugai.finding.ignore?${arg})`;
+      }).join("\n\n---\n\n");
+      return { range: new monaco.Range(position.lineNumber, 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)), contents: [{ value: md, isTrusted: true, supportHtml: false }] };
+    }
+  });
+
   function paintDiagnostics() {
     const model = editor.getModel(); const entry = openFiles[activeIndex];
     if (!model || !entry) return;
@@ -263,6 +295,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const projectName = document.getElementById("ws-project-label")?.textContent || "Project";
     box.innerHTML = `<div class="tree-row folder root" data-folder="" style="--d:0"><span class="tree-caret ${openFolders.has("") ? "open" : ""}">${icon("chevron")}</span>${icon("folder")}<span>${esc(projectName)}</span></div>` + (openFolders.has("") ? renderNode(buildTree(visible), 1) : "");
     window.BugStudioFiles = projectFiles.map((f) => f.name);
+    window.BugStudioSymbols = indexSymbols(projectFiles);
     box.querySelectorAll("[data-folder]").forEach((el) => el.onclick = () => { const p = el.dataset.folder; openFolders.has(p) ? openFolders.delete(p) : openFolders.add(p); renderTree(); });
     box.querySelectorAll("[data-file]").forEach((el) => el.onclick = () => {
       const file = projectFiles.find((f) => f.name === el.dataset.file); if (!file) return;
@@ -271,6 +304,28 @@ document.addEventListener("DOMContentLoaded", async () => {
       BugWorkspace.setContext({ file: file.name });
       renderTree();
     });
+  }
+  // Lightweight symbol index: declarations found by pattern in the stored
+  // files. Good enough to jump to a function or class; it is not a parser.
+  function indexSymbols(files) {
+    const out = [];
+    const rx = [
+      [/^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)/, "function"],
+      [/^\s*(?:export\s+)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/, "class"],
+      [/^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/, "function"],
+      [/^\s*(?:async\s+)?def\s+([A-Za-z_][\w]*)/, "function"],
+      [/^\s*(?:public|private|protected|static|final|\s)*(?:[\w<>\[\]]+\s+)+([A-Za-z_][\w]*)\s*\([^;]*\)\s*(?:throws[^{]*)?\{/, "method"],
+      [/^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_][\w]*)/, "function"],
+      [/^\s*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_][\w]*)/, "function"],
+      [/^\s*(?:pub\s+)?(?:struct|enum|trait|interface|type)\s+([A-Za-z_][\w]*)/, "type"]
+    ];
+    for (const f of files) {
+      const lines = String(f.content || "").split("\n");
+      for (let i = 0; i < lines.length && out.length < 4000; i++) {
+        for (const [re, kind] of rx) { const m = re.exec(lines[i]); if (m) { out.push({ name: m[1], kind, file: f.name, line: i + 1 }); break; } }
+      }
+    }
+    return out;
   }
   async function loadProjectFiles(id) {
     currentProjectId = id;
@@ -351,6 +406,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     a.download = filename; a.click(); URL.revokeObjectURL(a.href);
   }
 
+  // Drag handles between the panes; widths persist per browser.
+  (function panels() {
+    const grid = document.getElementById("studio8");
+    let sizes = { left: 248, right: 380 };
+    try { sizes = { ...sizes, ...(JSON.parse(localStorage.getItem("bugai_studio_panels") || "{}")) }; } catch { /* defaults */ }
+    const apply = () => { grid.style.setProperty("--st-left", sizes.left + "px"); grid.style.setProperty("--st-right", sizes.right + "px"); };
+    apply();
+    for (const side of ["left", "right"]) {
+      const h = document.createElement("div"); h.className = "st-resizer st-resizer-" + side; h.setAttribute("role", "separator"); h.setAttribute("aria-orientation", "vertical"); h.title = "Drag to resize";
+      grid.appendChild(h);
+      h.onpointerdown = (e) => {
+        e.preventDefault(); h.setPointerCapture(e.pointerId);
+        const startX = e.clientX, start = sizes[side];
+        const move = (ev) => { const d = ev.clientX - startX; sizes[side] = Math.max(160, Math.min(640, side === "left" ? start + d : start - d)); apply(); };
+        const up = () => { h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up); try { localStorage.setItem("bugai_studio_panels", JSON.stringify(sizes)); } catch { /* ignore */ } editor.layout(); };
+        h.addEventListener("pointermove", move); h.addEventListener("pointerup", up);
+      };
+    }
+  })();
   document.getElementById("st-explorer-close").onclick = () => document.getElementById("studio8").classList.toggle("no-explorer");
   document.getElementById("st-right-close").onclick = () => document.getElementById("studio8").classList.toggle("no-right");
 
@@ -792,6 +866,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const wantedFinding = params.get("finding");
   if (!wantedFile && !params.get("scanId")) {
     try {
+      const scratch = JSON.parse(localStorage.getItem("bugai_studio_scratch") || "{}");
+      for (const [n, v] of Object.entries(scratch)) if (!openFiles.some((f) => f.name === n)) openTab({ name: n, content: v.content, language: v.language || "auto", dirty: true });
+    } catch { /* ignore */ }
+    try {
       const saved = JSON.parse(localStorage.getItem("bugai_studio_tabs") || "null");
       if (saved && saved.projectId === (currentProjectId || "") && Array.isArray(saved.names)) {
         for (const n of saved.names) { const known = projectFiles.find((f) => f.name === n); if (known) openTab({ name: known.name, content: known.content, language: known.language || "auto" }); }
@@ -812,6 +890,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (wantedFinding && lastScan?.findings?.some((f) => f.id === wantedFinding)) showFinding(wantedFinding);
   // Applied last: the default finding selection above would otherwise switch
   // the panel back to Findings and swallow a ?panel= deep link.
+  bootstrapped = true; persistScratch();
   const wantedRevision = params.get("revision");
   if (wantedRevision && wantedFile) openRevisions(wantedFile, wantedRevision);
   const wantedPanel = params.get("panel");
