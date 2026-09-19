@@ -60,7 +60,7 @@ const BugPages = (() => {
         <button class="ws-button" data-explain="${esc(f.id)}">Explain</button>
         <button class="ws-button" data-optimizer="${esc(f.id)}">View in Optimizer</button>
         <button class="ws-button" data-gentest="${esc(f.id)}">Generate Test</button>
-        <button class="ws-button" data-triage="${esc(f.id)}" data-status="${f.triage?.status === "reviewed" ? "open" : "reviewed"}">${f.triage?.status === "reviewed" ? "Reopen" : "Mark reviewed"}</button>
+        <button class="ws-button" data-triage="${esc(f.id)}" data-status="${["reviewed", "fixed", "verified"].includes(f.triage?.status) ? "open" : "reviewed"}">${["reviewed", "fixed", "verified"].includes(f.triage?.status) ? "Reopen" : "Mark reviewed"}</button>
         <button class="ws-button" data-triage="${esc(f.id)}" data-status="${f.triage?.status === "ignored" ? "open" : "ignored"}">${f.triage?.status === "ignored" ? "Unignore" : "Ignore"}</button>
       </div>
     </article>`;

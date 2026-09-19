@@ -111,3 +111,27 @@ test("documentation generator is bounded, honest and owner-scoped", async () => 
     assert.equal(r.payload.markdown, undefined);
   });
 });
+
+test("revisions: every save is recorded with a source, listable, comparable and restorable", async () => {
+  await withServer(async (call, token) => {
+    const created = (await call("/projects", { method: "POST", token, body: { name: "rev", files: [{ name: "a.js", content: "const a = 1 < 2;\n" }] } })).payload;
+    const id = created.project.id;
+    assert.equal((await call(`/projects/${id}/revisions`, { token })).payload.total, 0, "creation is not a revision");
+    const saved = (await call(`/projects/${id}/files`, { method: "PUT", token, body: { name: "a.js", content: "const a = 1 < 2;\nconst b = \"<x>\";\n", source: "ai-fix", note: "added b" } })).payload;
+    assert.equal(saved.revision.source, "ai-fix");
+    assert.equal((await call(`/projects/${id}/files`, { method: "PUT", token, body: { name: "a.js", content: "const a = 1 < 2;\nconst b = \"<x>\";\n" } })).payload.revision, null, "an unchanged save records nothing");
+    const list = (await call(`/projects/${id}/revisions?file=a.js`, { token })).payload;
+    assert.equal(list.total, 1);
+    assert.ok(!("before" in list.revisions[0]), "list is a summary, contents come from the detail endpoint");
+    const detail = (await call(`/projects/${id}/revisions/${saved.revision.id}`, { token })).payload;
+    assert.equal(detail.revision.before, "const a = 1 < 2;\n", "source preserved byte for byte");
+    assert.equal(detail.current, "const a = 1 < 2;\nconst b = \"<x>\";\n");
+    const restored = (await call(`/projects/${id}/revisions/${saved.revision.id}/restore`, { method: "POST", token })).payload;
+    assert.equal(restored.revision.source, "restore");
+    const files = (await call(`/projects/${id}/files`, { token })).payload.files;
+    assert.equal(files.find((f) => f.name === "a.js").content, "const a = 1 < 2;\n");
+    assert.equal((await call(`/projects/${id}/revisions`, { token })).payload.total, 2, "restore is itself a revision");
+    assert.equal((await call(`/projects/${id}/revisions/nope`, { token })).status, 404);
+    assert.equal((await call(`/projects/${id}/revisions`)).status, 401);
+  });
+});

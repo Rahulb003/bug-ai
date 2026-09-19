@@ -188,6 +188,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ["Close all", () => { for (let i = openFiles.length - 1; i >= 0; i--) closeTab(i); }],
       ["Reveal in explorer", () => { selectedTreeFile = f.name; renderTree(); document.querySelector(`[data-file="${CSS.escape(f.name)}"]`)?.scrollIntoView({ block: "nearest" }); }, projectFiles.some((p) => p.name === f.name)],
       ["Copy path", () => navigator.clipboard?.writeText(f.name)],
+      ["Revisions…", () => openRevisions(f.name), Boolean(BugWorkspace.selectedProject()) && projectFiles.some((p) => p.name === f.name)],
       ["Open in Optimizer", () => { activateTab(index); document.getElementById("act-optimize").click(); }]
     ];
     menu.innerHTML = items.filter(([, , ok]) => ok !== false).map(([label], i) => `<button type="button" data-mi="${i}">${esc(label)}</button>`).join("");
@@ -451,8 +452,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     paintDiagnostics();
   }
 
+  // Why the buffer changed since the last save; recorded on the revision.
+  let pendingSource = "manual";
   function applyFixToBuffer(f, silent) {
     const model = editor.getModel(); if (!model) return false;
+    pendingSource = f.source === "ai" ? "ai-fix" : "repair";
     const fix = String(f.suggestedFix || "").trim(); if (!fix) return false;
     const line = f.line || 1;
     model.pushEditOperations([], [{ range: new monaco.Range(line, 1, line, model.getLineMaxColumn(line)), text: fix }], () => null);
@@ -533,6 +537,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const r = await App.api("/repair", { method: "POST", body: { code: code(), filename: name(), language: lang(), applyAiFixes: false } });
       const s = r.summary;
+      // Lifecycle: findings the rescan proved gone are recorded as fixed, or
+      // verified when the whole run was verified. Matched by rule + title.
+      if (lastScan?.id && Array.isArray(r.resolved) && r.resolved.length) {
+        const status = r.verdict === "VERIFIED_STATIC_AND_TESTS" ? "verified" : "fixed";
+        for (const done of r.resolved) {
+          const match = (lastScan.findings || []).find((f) => f.rule === done.rule && f.title === done.title && !["fixed", "verified"].includes(f.triage?.status));
+          if (match) { try { await BugWorkspace.setFindingStatus(match.id, status); } catch { /* triage is best-effort; the report is still shown */ } }
+        }
+        lastScan = BugWorkspace.currentScan() || lastScan; paintDiagnostics(); renderTabs();
+        pendingSource = "repair";
+      }
       const verdictTone = r.verdict === "VERIFIED_STATIC_AND_TESTS" ? "ok" : r.verdict === "NOTHING_TO_FIX" ? "ok" : r.verdict === "REJECTED" || r.verdict === "FAILED" || r.verdict === "TESTS_FAILED" ? "bad" : "warn";
       const tests = r.tests || {};
       pane.innerHTML = `
@@ -618,8 +633,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const id = BugWorkspace.selectedProject();
     if (!id) return App.showToast("Select a project in the switcher first.", "warning", "No project");
     try {
-      await App.api(`/projects/${id}/files`, { method: "PUT", body: { name: name(), content: code() } });
+      const saved = await App.api(`/projects/${id}/files`, { method: "PUT", body: { name: name(), content: code(), source: pendingSource } });
+      pendingSource = "manual";
       const entry = openFiles[activeIndex]; if (entry) { entry.dirty = false; renderTabs(); }
+      if (saved.revision) logLine(`Revision ${saved.revision.id} recorded (${saved.revision.source})`, "ok");
+      const stored = projectFiles.find((f) => f.name === name()); if (stored) stored.content = code();
       BugWorkspace.setContext({ file: name() });
       logLine(`Saved ${name()} to the project`, "ok");
       App.showToast("File saved to the selected project.");
@@ -665,6 +683,55 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (error) { out.innerHTML = `<div class="ws-empty st-mini">${esc(error.message)}</div>`; logLine(`Explain failed: ${error.message}`, "bad"); }
   }
   document.getElementById("st-explain-go").onclick = () => runExplain(false);
+
+  // ------------------------------------------------------------- revisions
+  // Real stored revisions of the open file: compare (diff editor) or restore.
+  let diffEditor = null;
+  async function openRevisions(fileName, focusId) {
+    const id = BugWorkspace.selectedProject();
+    if (!id) return App.showToast("Revisions exist for project files only.", "warning", "No project");
+    document.getElementById("st-revdrawer")?.remove();
+    const drawer = document.createElement("aside");
+    drawer.className = "st-drawer"; drawer.id = "st-revdrawer"; drawer.setAttribute("role", "dialog"); drawer.setAttribute("aria-label", "Revisions");
+    drawer.innerHTML = `<header><b>Revisions · ${esc(fileName)}</b><button class="st-x" type="button" data-close aria-label="Close">${icon("close")}</button></header><div class="st-drawer-body"><div class="st-revlist" id="st-revlist"><p class="ws-muted st-mini">Loading…</p></div><div class="st-revdiff" id="st-revdiff"><div class="ws-empty st-mini">Pick a revision to compare it with the current file.</div></div></div>`;
+    document.body.appendChild(drawer);
+    const close = () => { diffEditor?.dispose(); diffEditor = null; drawer.remove(); };
+    drawer.querySelector("[data-close]").onclick = close;
+    const esc_ = (e) => { if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc_); } };
+    document.addEventListener("keydown", esc_);
+    let list;
+    try { list = (await App.api(`/projects/${id}/revisions?file=${encodeURIComponent(fileName)}`)).revisions; }
+    catch (error) { drawer.querySelector("#st-revlist").innerHTML = BugWorkspace.emptyState({ title: "Could not load revisions", body: error.message }); return; }
+    const box = drawer.querySelector("#st-revlist");
+    if (!list.length) { box.innerHTML = BugWorkspace.emptyState({ title: "No revisions yet", body: "Revisions are recorded each time this file is saved to the project." }); return; }
+    const label = { manual: "Manual edit", "ai-fix": "AI fix", repair: "Fix & Verify", optimization: "Optimization", translation: "Translation", restore: "Restore" };
+    box.innerHTML = list.map((r, i) => `<button type="button" class="st-rev" data-rev="${esc(r.id)}"><b>#${list.length - i} ${esc(label[r.source] || r.source)}</b><span>${esc(new Date(r.createdAt).toLocaleString())}${r.by ? " · " + esc(r.by) : ""}</span><small>${r.bytesBefore} → ${r.bytesAfter} bytes${r.note ? " · " + esc(r.note) : ""}</small></button>`).join("");
+    async function show(rid) {
+      box.querySelectorAll(".st-rev").forEach((b) => b.classList.toggle("selected", b.dataset.rev === rid));
+      const out = drawer.querySelector("#st-revdiff");
+      out.innerHTML = `<div class="st-revdiff-bar"><span class="ws-muted">Before this revision → current file</span><span class="op-spacer"></span><button class="ws-button" data-restore>Restore this state</button></div><div class="st-revdiff-editor" id="st-revdiff-editor"></div>`;
+      let detail;
+      try { detail = await App.api(`/projects/${id}/revisions/${rid}`); } catch (error) { out.innerHTML = BugWorkspace.emptyState({ title: "Could not load revision", body: error.message }); return; }
+      diffEditor?.dispose();
+      diffEditor = monaco.editor.createDiffEditor(document.getElementById("st-revdiff-editor"), { readOnly: true, renderSideBySide: true, automaticLayout: true, theme: themeName(), fontFamily: cssVar("--font-mono"), minimap: { enabled: false } });
+      diffEditor.setModel({ original: monaco.editor.createModel(detail.revision.before, monacoLangFor(lang())), modified: monaco.editor.createModel(detail.current ?? code(), monacoLangFor(lang())) });
+      out.querySelector("[data-restore]").onclick = async () => {
+        if (!confirm("Restore the file to its state before this revision? The current content is kept as a new revision.")) return;
+        try {
+          const r = await App.api(`/projects/${id}/revisions/${rid}/restore`, { method: "POST" });
+          const stored = projectFiles.find((f) => f.name === fileName); const fresh = detail.revision.before;
+          if (stored) stored.content = fresh;
+          const tab = openFiles.find((f) => f.name === fileName); if (tab) { tab.model.setValue(fresh); tab.dirty = false; renderTabs(); }
+          logLine(`Restored ${fileName}; revision ${r.revision?.id || ""} recorded`, "ok");
+          App.showToast("File restored. The previous content is kept as a revision.", "success", "Restored");
+          close();
+        } catch (error) { App.showToast(error.message, "error", "Restore failed"); }
+      };
+    }
+    box.querySelectorAll(".st-rev").forEach((b) => b.onclick = () => show(b.dataset.rev));
+    if (focusId && list.some((r) => r.id === focusId)) show(focusId); else show(list[0].id);
+  }
+  BugWorkspace.registerCommands([{ id: "studio.revisions", label: "Revisions of this file", category: "Studio", icon: "clock", when: () => Boolean(BugWorkspace.selectedProject()) && openFiles[activeIndex], run: () => openRevisions(name()) }]);
 
   // Contextual action bar: appears beside a non-empty selection and offers the
   // operations that already exist for it. Hidden the moment the selection ends.
@@ -745,6 +812,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (wantedFinding && lastScan?.findings?.some((f) => f.id === wantedFinding)) showFinding(wantedFinding);
   // Applied last: the default finding selection above would otherwise switch
   // the panel back to Findings and swallow a ?panel= deep link.
+  const wantedRevision = params.get("revision");
+  if (wantedRevision && wantedFile) openRevisions(wantedFile, wantedRevision);
   const wantedPanel = params.get("panel");
   if (wantedPanel && document.querySelector(`[data-rt="${wantedPanel}"]`)) showRight(wantedPanel);
 });

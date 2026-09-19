@@ -56,17 +56,56 @@ export async function renameProject(user, id, payload) {
   return { project: summary(project) };
 }
 
+// Every save records a revision: what the file was, what it became, and why
+// (manual edit, AI fix, optimization, translation, restore). Revisions are the
+// only record of change here — nothing else reconstructs history.
+export const REVISION_SOURCES = ["manual", "ai-fix", "optimization", "translation", "repair", "restore"];
+const MAX_REVISIONS_PER_PROJECT = 80;
+
+function recordRevision(project, { file, before, after, source, note, user }) {
+  if (before === after) return null;
+  const revision = { id: generateId("rev"), file, source: REVISION_SOURCES.includes(source) ? source : "manual", note: String(note || "").slice(0, 200), before, after, bytesBefore: before.length, bytesAfter: after.length, createdAt: new Date().toISOString(), by: user?.username || user?.id || "" };
+  project.revisions = [...(project.revisions || []), revision].slice(-MAX_REVISIONS_PER_PROJECT);
+  return revision;
+}
+const revisionSummary = (r) => ({ id: r.id, file: r.file, source: r.source, note: r.note, bytesBefore: r.bytesBefore, bytesAfter: r.bytesAfter, createdAt: r.createdAt, by: r.by });
+
 export async function updateProjectFile(user, id, payload) {
   const project = await requireProject(user, id);
   const name = String(payload.name || "").replace(/\\/g, "/").replace(/^\/+/, "");
   const content = String(payload.content ?? "");
   if (!name || name.includes("..") || content.length > 200000) throw createAppError(400, "Provide a safe filename and content under 200,000 characters.");
   const existing = project.files.find((file) => file.name === name);
+  const before = existing ? existing.content : "";
   if (existing) existing.content = content;
   else project.files.push(...normalizeProjectFiles([{ name, content }]));
+  const revision = recordRevision(project, { file: name, before, after: content, source: payload.source, note: payload.note, user });
   project.metadata = buildMetadata(project.files); project.updatedAt = new Date().toISOString();
   await saveProject(project);
-  return { project: summary(project) };
+  return { project: summary(project), revision: revision ? revisionSummary(revision) : null };
+}
+
+export async function listProjectRevisions(user, id, file) {
+  const project = await requireProject(user, id);
+  const all = (project.revisions || []).filter((r) => !file || r.file === file);
+  return { revisions: all.map(revisionSummary).reverse(), total: all.length };
+}
+
+export async function getProjectRevision(user, id, revisionId) {
+  const project = await requireProject(user, id);
+  const revision = (project.revisions || []).find((r) => r.id === revisionId);
+  if (!revision) throw createAppError(404, "Revision not found.");
+  const current = project.files.find((f) => f.name === revision.file)?.content ?? null;
+  return { revision, current };
+}
+
+// Restore writes the revision's "before" content back, which itself becomes a
+// new revision — nothing is ever silently overwritten.
+export async function restoreProjectRevision(user, id, revisionId) {
+  const project = await requireProject(user, id);
+  const revision = (project.revisions || []).find((r) => r.id === revisionId);
+  if (!revision) throw createAppError(404, "Revision not found.");
+  return updateProjectFile(user, id, { name: revision.file, content: revision.before, source: "restore", note: `Restored state before ${revision.source} revision ${revision.id}` });
 }
 
 export async function analyzeStoredProject(user, id, payload = {}) {

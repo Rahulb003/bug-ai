@@ -237,7 +237,8 @@ export const setFindingStatusController = asyncHandler(async (req, res) => {
   const scan = await findScanById(req.params.scanId);
   await assertScanAccess(req.user, scan, "Scan could not be found.");
   const status = String(req.body.status || "").toLowerCase();
-  if (!["open", "ignored", "reviewed"].includes(status)) throw createAppError(400, "Status must be open, ignored or reviewed.");
+  // fixed/verified are set by the Fix & Verify pipeline from its rescan comparison; reopen returns a finding to open.
+  if (!["open", "ignored", "reviewed", "fixed", "verified"].includes(status)) throw createAppError(400, "Status must be open, ignored, reviewed, fixed or verified.");
   const finding = (scan.findings || []).find((item) => item.id === req.params.findingId);
   if (!finding) throw createAppError(404, "Finding could not be found in this scan.");
   finding.triage = { status, by: req.user.username, at: new Date().toISOString() };

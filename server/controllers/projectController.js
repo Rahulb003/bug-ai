@@ -10,6 +10,9 @@ export const updateProjectFileController = asyncHandler(async (req, res) => res.
 export const analyzeStoredProjectController = asyncHandler(async (req, res) => res.json(await projects.analyzeStoredProject(req.user, req.params.projectId, req.body)));
 export const projectDependenciesController = asyncHandler(async (req, res) => res.json(await projects.projectDependencies(req.user, req.params.projectId)));
 export const projectArchitectureController = asyncHandler(async (req, res) => res.json(await projects.projectArchitecture(req.user, req.params.projectId)));
+export const listRevisionsController = asyncHandler(async (req, res) => res.json(await projects.listProjectRevisions(req.user, req.params.projectId, req.query.file)));
+export const getRevisionController = asyncHandler(async (req, res) => res.json(await projects.getProjectRevision(req.user, req.params.projectId, req.params.revisionId)));
+export const restoreRevisionController = asyncHandler(async (req, res) => res.json(await projects.restoreProjectRevision(req.user, req.params.projectId, req.params.revisionId)));
 export const deleteProjectController = asyncHandler(async (req, res) => res.json(await projects.deleteProject(req.user, req.params.projectId)));
 
 export const importArchiveController = asyncHandler(async (req, res) => res.status(201).json(await projects.importProjectFromArchive(req.user, req.body)));

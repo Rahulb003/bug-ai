@@ -169,6 +169,7 @@ export async function fixAndVerifyAll({ source, language = "auto", sourceName = 
     },
     modifications: applied.map((m) => ({ findingId: m.findingId, title: m.title, severity: m.severity, line: m.line, source: m.source, before: m.before, after: m.after, explanation: m.explanation })),
     requiresReview: requiresReview.map((m) => ({ findingId: m.findingId, title: m.title, severity: m.severity, line: m.line, source: m.source, suggestedFix: m.suggestedFix, explanation: m.explanation })),
+    resolved: comparison.resolved.map((f) => ({ id: f.id, rule: f.rule, title: f.title, severity: f.severity, line: f.line })),
     remaining: comparison.remaining.map((f) => ({ id: f.id, rule: f.rule, title: f.title, severity: f.severity, line: f.line })),
     introduced: comparison.introduced.map((f) => ({ id: f.id, rule: f.rule, title: f.title, severity: f.severity, line: f.line })),
     tests,

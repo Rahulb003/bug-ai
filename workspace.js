@@ -273,12 +273,15 @@ const BugWorkspace = (() => {
   async function renderNotifications() {
     const menu = document.getElementById("ws-notifications");
     menu.innerHTML = `<div class="ws-menu-head"><b>Notifications</b><small>${notificationsCache.filter((n) => !n.read).length} unread</small></div>` + (notificationsCache.length
-      ? notificationsCache.slice(0, 10).map((n) => `<button type="button" class="ws-note ${n.read ? "" : "unread"}" data-note="${esc(n.id)}"><b>${esc(n.title)}</b><span>${esc(n.message)}</span><small>${new Date(n.createdAt).toLocaleString()}</small></button>`).join("")
+      ? notificationsCache.slice(0, 10).map((n) => `<button type="button" class="ws-note ${n.read ? "" : "unread"}" data-note="${esc(n.id)}"><b>${esc(n.title)}</b><span>${esc(n.message)}</span><small>${new Date(n.createdAt).toLocaleString()}${n.scanId ? " · open findings →" : ""}</small></button>`).join("")
       : `<div class="ws-menu-empty">Nothing yet. Notifications appear when a scan completes.</div>`);
     menu.querySelectorAll("[data-note]").forEach((button) => button.addEventListener("click", async () => {
       try { await App.api(`/notifications/${button.dataset.note}/read`, { method: "POST" }); cacheClear("notifications"); } catch { /* surfaced by the online pill */ }
       button.classList.remove("unread");
       await refreshNotificationBadge();
+      // Actionable: a scan notification opens that scan's findings.
+      const note = notificationsCache.find((n) => n.id === button.dataset.note);
+      if (note?.scanId) location.href = `analyzer.html?scanId=${encodeURIComponent(note.scanId)}`;
     }));
   }
 
@@ -435,7 +438,7 @@ const BugWorkspace = (() => {
   }
 
   // One connected environment: any page can hand a file+line to the editor.
-  function openInStudio({ file, line, column, findingId, panel, scanId } = {}) {
+  function openInStudio({ file, line, column, findingId, panel, scanId, revision } = {}) {
     const params = new URLSearchParams();
     const scan = scanId || currentScan()?.id;
     if (scan) params.set("scanId", scan);
@@ -444,6 +447,7 @@ const BugWorkspace = (() => {
     if (column) params.set("column", String(column));
     if (findingId) params.set("finding", findingId);
     if (panel) params.set("panel", panel);
+    if (revision) params.set("revision", revision);
     if (file) localStorage.setItem("bugai_current_file", file);
     location.href = `studio.html${params.toString() ? `?${params}` : ""}`;
   }

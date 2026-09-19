@@ -110,6 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
   + '<button class="ws-button" id="op-copy">Copy</button>'
   + '<button class="ws-button" id="op-download">Download</button>'
   + '<button class="ws-button" id="op-replace">Replace original</button>'
+  + '<button class="ws-button" id="op-save" title="Save the current (accepted) code to the project as a revision">Save to project</button>'
   + '<button class="ws-button danger" id="op-revert">Revert</button>'
   + "</div>"
   + '<div class="op-body" id="op-body"></div>'
@@ -218,6 +219,20 @@ document.addEventListener("DOMContentLoaded", () => {
       setStatus("Translated " + out.from + " → " + to + ": " + hunks.length + " hunk(s). Semantic equivalence is NOT verified — review, then accept to replace the working copy.", "warn");
       input.language = to; input.filename = String(input.filename || "snippet").replace(/.[^.]+$/, "") + "." + ({ javascript: "js", typescript: "ts", python: "py", java: "java", go: "go", rust: "rs", csharp: "cs", cpp: "cpp", ruby: "rb", php: "php", kotlin: "kt", swift: "swift" }[to] || to);
     } catch (error) { setStatus(error.message, "bad"); }
+  };
+
+  // Persist the accepted working copy as a project revision whose source
+  // says how it was produced. Never implicit: only on this click.
+  document.getElementById("op-save").onclick = async (e) => {
+    const projectId = BugWorkspace.selectedProject();
+    if (!projectId) return App.showToast("Select a project in the switcher first.", "warning", "No project");
+    const content = acceptedCode();
+    if (content === original) return App.showToast("Nothing has changed since the original.", "info", "Nothing to save");
+    const source = /^translate:/.test(proposalLabel) ? "translation" : /^fix/.test(proposalLabel) ? "ai-fix" : "optimization";
+    try {
+      const out = await BugMotion.busy(e.currentTarget, App.api("/projects/" + projectId + "/files", { method: "PUT", body: { name: input.filename, content, source, note: proposalLabel } }), { busyLabel: "Saving…", doneLabel: "✓ Saved" });
+      setStatus("Saved " + input.filename + " to the project" + (out.revision ? " as revision " + out.revision.id + " (" + out.revision.source + ")" : "") + ".", "ok");
+    } catch (error) { App.showToast(error.message, "error", "Save failed"); }
   };
 
   document.getElementById("op-fixall").onclick = async () => {

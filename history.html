@@ -5,10 +5,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const esc = BugWorkspace.esc;
   root.innerHTML = '<p class="ws-muted">Loading stored scans…</p>';
   let scans = [];
+  const pid = BugWorkspace.selectedProject();
+  if (pid) { try { window.__revisions = (await App.api("/projects/" + pid + "/revisions")).revisions || []; } catch { window.__revisions = []; } }
   try { scans = (await App.api("/history")).scans || []; }
   catch (error) { root.innerHTML = BugWorkspace.emptyState({ title: "Could not load history", body: error.message }); return; }
 
-  if (!scans.length) {
+  if (!scans.length && !(window.__revisions || []).length) {
     root.innerHTML = BugPages.header({ title: "History", subtitle: "Every stored scan, fix and verification." })
       + BugWorkspace.emptyState({ title: "No history yet", body: "Previous scans will appear here once you analyze something.", actionHref: "studio.html", actionLabel: "Open Code Studio" });
     return;
@@ -31,15 +33,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Code timeline: the same stored scans grouped by day. Fixes and revisions
   // are not stored as events yet, so only scans appear here — nothing is invented.
   + (function () {
+    const revisions = window.__revisions || [];
     const dayLabel = (d) => { const t = new Date(); const y = new Date(); y.setDate(t.getDate() - 1); const k = (x) => x.toDateString(); return k(d) === k(t) ? "Today" : k(d) === k(y) ? "Yesterday" : d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: d.getFullYear() === t.getFullYear() ? undefined : "numeric" }); };
     const groups = new Map();
-    scans.slice().sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt)).forEach((sc) => { const l = dayLabel(new Date(sc.createdAt)); if (!groups.has(l)) groups.set(l, []); groups.get(l).push(sc); });
-    return '<section class="pg-section"><div class="pg-section-head"><h3>Code timeline</h3><span class="ws-muted" style="font-size:12px">Stored scans by day · fixes and revisions are not recorded as events yet</span></div><div class="tl-days">'
-      + [...groups].map(([label, list]) => '<div class="tl-day"><h4>' + esc(label) + "</h4>" + list.map((sc) => '<button type="button" class="tl-ev" data-tl="' + esc(sc.id) + '"><span class="tl-dot ' + sevClass(sc.riskLevel) + '"></span><time>' + esc(new Date(sc.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) + "</time><b>Scan</b><span>" + esc(sc.sourceName || "snippet") + "</span><small>" + ((sc.findings || sc.bugs || []).length) + " finding(s) · " + esc(String(sc.verification?.status || "NOT RUN").replaceAll("_", " ")) + "</small></button>").join("") + "</div>").join("")
+    const label = { manual: "Manual edit", "ai-fix": "AI fix", repair: "Fix & Verify", optimization: "Optimization", translation: "Translation", restore: "Restore" };
+    const events = [...scans.map((sc) => ({ kind: "scan", at: sc.createdAt, sc })), ...revisions.map((r) => ({ kind: "revision", at: r.createdAt, r }))].sort((x, y) => new Date(y.at) - new Date(x.at));
+    events.forEach((ev) => { const l = dayLabel(new Date(ev.at)); if (!groups.has(l)) groups.set(l, []); groups.get(l).push(ev); });
+    return '<section class="pg-section"><div class="pg-section-head"><h3>Code timeline</h3><span class="ws-muted" style="font-size:12px">Stored scans and file revisions of the selected project, by day</span></div><div class="tl-days">'
+      + [...groups].map(([day, list]) => '<div class="tl-day"><h4>' + esc(day) + "</h4>" + list.map((ev) => ev.kind === "scan"
+        ? '<button type="button" class="tl-ev" data-tl="' + esc(ev.sc.id) + '"><span class="tl-dot ' + sevClass(ev.sc.riskLevel) + '"></span><time>' + esc(new Date(ev.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) + "</time><b>Scan</b><span>" + esc(ev.sc.sourceName || "snippet") + "</span><small>" + ((ev.sc.findings || ev.sc.bugs || []).length) + " finding(s) · " + esc(String(ev.sc.verification?.status || "NOT RUN").replaceAll("_", " ")) + "</small></button>"
+        : '<button type="button" class="tl-ev" data-rev="' + esc(ev.r.id) + '" data-file="' + esc(ev.r.file) + '"><span class="tl-dot rev"></span><time>' + esc(new Date(ev.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })) + "</time><b>" + esc(label[ev.r.source] || ev.r.source) + "</b><span>" + esc(ev.r.file) + "</span><small>" + ev.r.bytesBefore + " → " + ev.r.bytesAfter + " bytes · compare</small></button>").join("") + "</div>").join("")
       + "</div></section>";
   })();
 
   document.querySelectorAll("[data-tl]").forEach((b) => b.onclick = () => { location.href = "analyzer.html?scanId=" + encodeURIComponent(b.dataset.tl); });
+  document.querySelectorAll("[data-rev]").forEach((b) => b.onclick = () => BugWorkspace.openInStudio({ file: b.dataset.file, revision: b.dataset.rev }));
 
   const picks = () => [...document.querySelectorAll("[data-pick]:checked")].map((c) => c.dataset.pick);
   document.querySelectorAll("[data-pick]").forEach((c) => c.onchange = () => { document.getElementById("compare").disabled = picks().length !== 2; });

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import {
-  analyzeStoredProjectController, createProjectController, deleteProjectController, getProjectController, getProjectFilesController,
+  analyzeStoredProjectController, createProjectController, deleteProjectController, listRevisionsController, getRevisionController, restoreRevisionController, getProjectController, getProjectFilesController,
   listProjectsController, projectArchitectureController, importArchiveController, importGithubController, exportProjectController, projectDebtController, projectDependenciesController, renameProjectController, updateProjectFileController
 } from "../controllers/projectController.js";
 
@@ -17,6 +17,9 @@ router.patch("/projects/:projectId", renameProjectController);
 router.delete("/projects/:projectId", deleteProjectController);
 router.get("/projects/:projectId/files", getProjectFilesController);
 router.put("/projects/:projectId/files", updateProjectFileController);
+router.get("/projects/:projectId/revisions", listRevisionsController);
+router.get("/projects/:projectId/revisions/:revisionId", getRevisionController);
+router.post("/projects/:projectId/revisions/:revisionId/restore", restoreRevisionController);
 router.post("/projects/:projectId/analyze", analyzeStoredProjectController);
 router.get("/projects/:projectId/dependencies", projectDependenciesController);
 router.get("/projects/:projectId/architecture", projectArchitectureController);
