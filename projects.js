@@ -7,10 +7,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   root.innerHTML = BugPages.header({ title: "Projects", subtitle: "Create, import, open, analyze and export stored projects.", actions: '<button class="ws-button" id="refresh">Refresh</button>' })
   + '<div class="ws-grid cols-3">'
   + '<section class="ws-card"><h3>' + icon("folder") + ' Create from files</h3><p class="ws-muted">Select files or a folder. Dependency and generated directories are skipped.</p>'
-  + '<input class="ws-input" id="project-name" value="My project" aria-label="Project name"><input class="ws-input" id="project-files" type="file" multiple webkitdirectory style="margin-top:10px">'
+  + '<input class="ws-input" id="project-name" value="My project" aria-label="Project name"><input class="ws-input" id="project-files" type="file" multiple webkitdirectory style="margin-top:10px" aria-label="Files or folder to create the project from">'
   + '<div class="ws-toolbar" style="margin-top:12px"><button class="ws-button primary" id="create-project">Create project</button></div></section>'
   + '<section class="ws-card"><h3>' + icon("deps") + ' Upload ZIP</h3><p class="ws-muted">A .zip is unpacked on the server. Binary files, unsafe paths and ignored directories are dropped and reported.</p>'
-  + '<input class="ws-input" id="zip-name" placeholder="Project name (defaults to the file name)"><input class="ws-input" id="zip-file" type="file" accept=".zip,application/zip" style="margin-top:10px">'
+  + '<input class="ws-input" id="zip-name" placeholder="Project name (defaults to the file name)"><input class="ws-input" id="zip-file" type="file" accept=".zip,application/zip" style="margin-top:10px" aria-label="ZIP archive to import">'
   + '<div class="ws-toolbar" style="margin-top:12px"><button class="ws-button primary" id="import-zip">Import ZIP</button></div><p id="zip-status" class="ws-muted"></p></section>'
   + '<section class="ws-card"><h3>' + icon("git") + ' Import from GitHub</h3><p class="ws-muted">Public repositories only, read-only. The default branch is fetched with the same caps as GitHub scanning.</p>'
   + '<input class="ws-input" id="gh-url" placeholder="https://github.com/owner/repository"><input class="ws-input" id="gh-name" placeholder="Project name (defaults to owner/repo)" style="margin-top:10px">'
