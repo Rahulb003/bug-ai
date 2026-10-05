@@ -1,3 +1,8 @@
 node_modules/
 .env
 npm-debug.log*
+
+# Runtime database: real accounts, scans and project sources. Created on first
+# run by the server; never commit it.
+data/db.json
+data/*.tmp
