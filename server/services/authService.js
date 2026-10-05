@@ -1,7 +1,7 @@
 import { createUserRecord, findUserByEmail, findUserById, findUserByUsername, upsertUser, updateUserById } from "../models/userModel.js";
 import { attachWorkspaceInvites, claimWorkspaceInvite } from "../models/workspaceModel.js";
 import { createAppError } from "../utils/errors.js";
-import { generateId, hashPassword, verifyPassword } from "../utils/hash.js";
+import { generateId, hashPassword, needsRehash, verifyPassword } from "../utils/hash.js";
 import { signJwt, verifyJwt } from "../utils/jwt.js";
 
 function toPublicUser(user) {
@@ -58,7 +58,7 @@ export async function registerUser(payload) {
     throw createAppError(409, "Email already exists.");
   }
 
-  const passwordHash = hashPassword(password);
+  const passwordHash = await hashPassword(password);
   const user = await createUserRecord({
     id: generateId("usr"),
     username,
@@ -80,8 +80,16 @@ export async function loginUser(payload) {
   const password = String(payload.password || "");
 
   const user = (await findUserByUsername(identifier)) || (await findUserByEmail(identifier.toLowerCase()));
-  if (!user || !verifyPassword(password, user.passwordHash)) {
+  if (!user || !(await verifyPassword(password, user.passwordHash))) {
     throw createAppError(401, "Invalid credentials.");
+  }
+
+  // Transparent upgrade: a password proved correct against weaker stored
+  // parameters is re-hashed at the current cost. The user notices nothing, and
+  // a failure here must never block a valid login.
+  if (needsRehash(user.passwordHash)) {
+    try { await updateUserById(user.id, { passwordHash: await hashPassword(password) }); }
+    catch { /* keep the old hash; the next login retries the upgrade */ }
   }
 
   return createSession(user);
@@ -138,9 +146,9 @@ export async function changePassword(user, payload = {}) {
   const current = String(payload.currentPassword || "");
   const next = String(payload.newPassword || "");
   const record = await findUserById(user.id);
-  if (!record || !verifyPassword(current, record.passwordHash)) throw createAppError(401, "Current password is incorrect.");
+  if (!record || !(await verifyPassword(current, record.passwordHash))) throw createAppError(401, "Current password is incorrect.");
   if (next.length < 8) throw createAppError(400, "New password must be at least 8 characters.");
   if (next === current) throw createAppError(400, "New password must differ from the current one.");
-  await updateUserById(user.id, { passwordHash: hashPassword(next), passwordChangedAt: new Date().toISOString() });
+  await updateUserById(user.id, { passwordHash: await hashPassword(next), passwordChangedAt: new Date().toISOString() });
   return { ok: true };
 }

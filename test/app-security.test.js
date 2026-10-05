@@ -120,3 +120,65 @@ test("profile: update username/email/preferences, change password, passwords kee
   assert.equal((await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "pf" + u + "x", password: "new-password-1" }) })).status, 200);
   assert.equal((await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "pf" + u + "x", password: pw }) })).status, 401, "old password no longer works");
 });
+
+test("password hashing: PBKDF2 at current guidance, legacy hashes still verify and upgrade on login", async () => {
+  const crypto = await import("node:crypto");
+  const { hashPassword, verifyPassword, needsRehash, PBKDF2_ITERATIONS } = await import("../server/utils/hash.js");
+
+  assert.ok(PBKDF2_ITERATIONS >= 210000, "iterations meet OWASP guidance for PBKDF2-SHA512");
+  const stored = await hashPassword("correct horse battery staple");
+  const [scheme, digest, iterations, salt, hash] = stored.split("$");
+  assert.equal(scheme, "pbkdf2");
+  assert.equal(digest, "sha512");
+  assert.equal(Number(iterations), PBKDF2_ITERATIONS, "parameters travel with the hash");
+  assert.equal(Buffer.from(salt, "hex").length, 16, "random 16-byte salt");
+  assert.equal(Buffer.from(hash, "hex").length, 64);
+  assert.equal(await verifyPassword("correct horse battery staple", stored), true);
+  assert.equal(await verifyPassword("wrong password", stored), false);
+  assert.equal(needsRehash(stored), false);
+
+  // Two hashes of the same password differ (salted).
+  assert.notEqual(stored, await hashPassword("correct horse battery staple"));
+
+  // A hash written in the old <salt>:<digest> / 10,000-iteration format.
+  const legacySalt = crypto.randomBytes(16).toString("hex");
+  const legacy = `${legacySalt}:${crypto.pbkdf2Sync("old-password", legacySalt, 10000, 64, "sha512").toString("hex")}`;
+  assert.equal(await verifyPassword("old-password", legacy), true, "legacy hashes keep working");
+  assert.equal(await verifyPassword("nope", legacy), false);
+  assert.equal(needsRehash(legacy), true, "and are flagged for upgrade");
+
+  // Malformed records are rejected, never thrown on.
+  for (const bad of ["", null, "garbage", "pbkdf2$sha512$x$y$z", "onlysalt:", ":onlyhash"]) {
+    assert.equal(await verifyPassword("x", bad), false, `rejects ${JSON.stringify(bad)}`);
+  }
+});
+
+test("logging in with a legacy hash silently re-hashes it at the new cost", async (t) => {
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((resolve) => server.once("listening", resolve));
+  t.after(() => server.close());
+  const base = `http://127.0.0.1:${server.address().port}/api`;
+  const crypto = await import("node:crypto");
+  const { findUserByUsername } = await import("../server/models/userModel.js");
+  const { updateUserById } = await import("../server/models/userModel.js");
+  const { needsRehash } = await import("../server/utils/hash.js");
+
+  const u = "legacy" + Math.random().toString(36).slice(2, 7);
+  await fetch(`${base}/auth/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u, email: `${u}@example.test`, password: "safe-password" }) });
+
+  // Force the account back to the old format, as an existing database would hold it.
+  const salt = crypto.randomBytes(16).toString("hex");
+  const record = await findUserByUsername(u);
+  await updateUserById(record.id, { passwordHash: `${salt}:${crypto.pbkdf2Sync("safe-password", salt, 10000, 64, "sha512").toString("hex")}` });
+  assert.equal(needsRehash((await findUserByUsername(u)).passwordHash), true);
+
+  const login = await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u, password: "safe-password" }) });
+  assert.equal(login.status, 200, "the old password still logs in");
+  const after = (await findUserByUsername(u)).passwordHash;
+  assert.ok(after.startsWith("pbkdf2$sha512$"), "stored hash was upgraded in place");
+  assert.equal(needsRehash(after), false);
+
+  // And the upgraded hash still accepts the same password.
+  assert.equal((await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u, password: "safe-password" }) })).status, 200);
+  assert.equal((await fetch(`${base}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u, password: "wrong" }) })).status, 401);
+});

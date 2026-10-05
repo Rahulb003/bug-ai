@@ -111,6 +111,8 @@ The one exception is opt-in: with `EXECUTION_SANDBOX_ENABLED=true`, `/api/verify
 
 GitHub analysis accepts only public `https://github.com/owner/repository` URLs, uses timeouts, ignores dependency/generated paths, and caps loaded files. Source content is preserved exactly; API metadata is sanitised without mutating code.
 
+Passwords are stored as PBKDF2-HMAC-SHA512, 210,000 iterations, 16-byte random salt, with the parameters encoded in each record so they can be raised later; a login against weaker stored parameters re-hashes the password in place. Sessions are httpOnly, SameSite=Strict cookies, and cookie-authenticated writes require an `X-Requested-With` header.
+
 The browser server serves an explicit allowlist of UI files only. Database records, environment files, server source, package metadata, and tests are not public static files.
 
 ## Evaluation
