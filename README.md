@@ -14,6 +14,8 @@ npm start
 
 Open `http://127.0.0.1:8080`, then sign in and open `Code Studio`. Run the automated checks with `npm.cmd test` on Windows or `npm test` elsewhere.
 
+The database is not committed: `data/db.json` is runtime state (accounts, scans, projects) and is created automatically on first run. Keep it out of version control.
+
 `open-app.bat` starts the API and opens the browser. `start.bat` starts it in the current terminal. Both are in the repository root.
 
 ## Workspace pages
